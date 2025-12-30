@@ -74,7 +74,7 @@ const commandSchema = new mongoose.Schema(
       type: String, // Thông tin lỗi nếu failed (timeout, invalid code...)
     },
   },
-  { timestamps: true }
+  // { timestamps: true }
 );
 
 // Index để tối ưu tìm kiếm

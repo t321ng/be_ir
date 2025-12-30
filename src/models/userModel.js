@@ -29,15 +29,32 @@ const userSchema = new mongoose.Schema(
       enum: ['user', 'admin'], // Chỉ cho phép hai giá trị: user hoặc admin
     },
 
-    created_at: {
-      type: Date,
-      default: Date.now, // Mặc định sẽ là thời điểm tạo tài khoản
-      required: true,
+    is_verified: {
+      type: Boolean,
+      default: false,
     },
 
-    updated_at: {
+    verification_code_hash: {
+      type: String,
+    },
+
+    verification_code_expires: {
       type: Date,
     },
+
+    verification_last_sent_at: {
+      type: Date,
+    },
+
+    // created_at: {
+    //   type: Date,
+    //   default: Date.now, // Mặc định sẽ là thời điểm tạo tài khoản
+    //   required: true,
+    // },
+
+    // updated_at: {
+    //   type: Date,
+    // },
   },
   { timestamps: true } // Mongoose sẽ tự động thêm `created_at` và `updated_at`
 );
