@@ -47,11 +47,11 @@ const irCodeSchema = new mongoose.Schema(
       type: String, // Có thể lưu thêm dạng khác (hex/base64) tuỳ implement
     },
 
-    created_at: {
-      type: Date,
-      default: Date.now,
-      required: true,
-    },
+    // created_at: {
+    //   type: Date,
+    //   default: Date.now,
+    //   required: true,
+    // },
   },
   { timestamps: true }
 );

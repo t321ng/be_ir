@@ -18,11 +18,11 @@ const roomSchema = new mongoose.Schema(
       type: String, // Mô tả/ghi chú (tuỳ chọn)
     },
 
-    created_at: {
-      type: Date,
-      default: Date.now,
-      required: true,
-    },
+    // created_at: {
+    //   type: Date,
+    //   default: Date.now,
+    //   required: true,
+    // },
   },
   { timestamps: true }
 );

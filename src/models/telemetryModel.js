@@ -40,11 +40,11 @@ const telemetrySchema = new mongoose.Schema(
       default: Date.now, // Thời điểm đo, gửi từ esp về (QUAN TRỌNG)
     },
 
-    created_at: {
-      type: Date,
-      default: Date.now,
-      required: true, // Thời điểm BE lưu vào DB
-    },
+    // created_at: {
+    //   type: Date,
+    //   default: Date.now,
+    //   required: true, // Thời điểm BE lưu vào DB
+    // },
   },
   { timestamps: true }
 );

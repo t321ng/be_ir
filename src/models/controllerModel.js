@@ -73,11 +73,11 @@ const controllerSchema = new mongoose.Schema(
       default: true, // Có cảm biến không (temp/humid...)
     },
 
-    created_at: {
-      type: Date,
-      default: Date.now,
-      required: true,
-    },
+    // created_at: {
+    //   type: Date,
+    //   default: Date.now,
+    //   required: true,
+    // },
   },
   { timestamps: true }
 );

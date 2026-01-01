@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import "dotenv/config";
 
 const connectDB = async () => {
-  await mongoose.connect(process.env.DB_URL);
+  await mongoose.connect(process.env.MONGODB_URI);
   console.log("Connect to DB thành công");
 };
 
