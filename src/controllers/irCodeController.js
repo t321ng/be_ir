@@ -52,7 +52,7 @@ export const createIrCode = async (req, res) => {
 };
 
 // Get IR codes for current user
-export const getIrCodes = async (req, res) => {
+export const getAllIrCodes = async (req, res) => {
   try {
     const owner_id = req.user?._id;
 

@@ -1,0 +1,143 @@
+////////////////////////////////////////////////////
+// 1. USERS
+////////////////////////////////////////////////////
+Table users {
+  _id ObjectId [pk] // MongoDB ObjectId
+  username varchar(100) [not null, unique] // Tên đăng nhập hiển thị / login
+  email varchar(150) [not null, unique] // Email đăng nhập + nhận thông báo
+  password_hash varchar(255) [not null] // Mật khẩu đã hash (BCrypt/Argon2)
+  role varchar(50) [not null, default: 'user'] // Phân quyền: user / admin
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`] // Thời điểm tạo tài khoản
+  updated_at datetime // Thời điểm cập nhật gần nhất (đổi pass, đổi profile...)
+}
+
+////////////////////////////////////////////////////
+// 2. ROOMS
+////////////////////////////////////////////////////
+Table rooms {
+  _id ObjectId [pk] // ID phòng
+  owner_id ObjectId [not null, ref: > users._id] // Chủ sở hữu phòng (1 user - n rooms)
+  name varchar(100) [not null] // Tên phòng: "Phòng khách", "Phòng ngủ"...
+  description text // Mô tả/ghi chú (tuỳ chọn)
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`] // Thời điểm tạo phòng
+}
+
+
+////////////////////////////////////////////////////
+// 3. CONTROLLERS (ESP / GATEWAY)
+////////////////////////////////////////////////////
+Table controllers {
+  _id ObjectId [pk] // ID gateway/ESP
+  owner_id ObjectId [not null, ref: > users._id] // Chủ sở hữu (ai quản lý ESP)
+  room_id ObjectId [ref: > rooms._id] // ESP đặt ở phòng nào (có thể null nếu chưa gán)
+
+  name varchar(120) [not null] // Tên hiển thị: "ESP32 phòng khách"
+  description text // Ghi chú (tuỳ chọn)
+
+  // MQTT identity & topics
+  mqtt_client_id varchar(150) // ClientId khi ESP connect broker (nếu có)
+  base_topic varchar(200) // Prefix topic: vd "device/<controllerId>"
+  cmd_topic varchar(200) // Topic nhận lệnh: vd "device/<id>/commands"
+  status_topic varchar(200) // Topic trạng thái: vd "device/<id>/status"
+  ack_topic varchar(200) // Topic ack: vd "device/<id>/acks" (ESP trả kết quả)
+
+  // Online status
+  online bool [not null, default: false] // Trạng thái online/offline (do BE cập nhật)
+  last_seen datetime // Lần cuối BE thấy ESP (heartbeat/status)
+
+  // Capability flags
+  has_ir bool [not null, default: true] // Có module IR blaster không
+  has_sensors bool [not null, default: true] // Có cảm biến không (temp/humid...)
+
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`] // Thời điểm tạo record controller
+}
+
+
+////////////////////////////////////////////////////
+// 4. APPLIANCES (THIẾT BỊ IR: TV/AC/...)
+////////////////////////////////////////////////////
+Table appliances {
+  _id ObjectId [pk] // ID thiết bị IR
+  owner_id ObjectId [not null, ref: > users._id] // Chủ sở hữu thiết bị
+  room_id ObjectId [ref: > rooms._id] // Thiết bị nằm trong phòng nào
+  controller_id ObjectId [not null, ref: > controllers._id] // ESP điều khiển thiết bị này
+
+  name varchar(120) [not null] // Tên hiển thị: "Máy lạnh Daikin", "TV Sony"
+  brand varchar(100) // Hãng: Daikin, Sony, LG...
+  device_type varchar(100) [not null] // Loại: air_conditioner / tv / fan / lamp...
+  description text // Ghi chú (tuỳ chọn)
+
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`] // Thời điểm tạo thiết bị
+}
+
+
+////////////////////////////////////////////////////
+// 5. IR_CODES (MÃ HỒNG NGOẠI)
+////////////////////////////////////////////////////
+Table ir_codes {
+  _id ObjectId [pk] // ID mã IR
+
+  // Scope: gắn theo thiết bị cụ thể hoặc library chung
+  owner_id ObjectId [ref: > users._id] // (Tuỳ chọn) user tạo/ sở hữu mã (null nếu library chung)
+  // appliance_id ObjectId [ref: > appliances._id] // (Tuỳ chọn) mã gắn riêng cho 1 thiết bị
+
+  brand varchar(100) // Hãng (dùng cho library hoặc filter)
+  device_type varchar(100) // Loại thiết bị (tv/air_conditioner/...)
+  action varchar(100) [not null] // Hành động: PowerOn, TempUp, VolDown...
+
+  protocol varchar(50) [not null, default: 'raw'] // raw / nec / rc5...
+  frequency int // Tần số IR (Hz) nếu cần
+  bits int // Số bit nếu protocol cần
+
+  // Payload lưu mã (thường lưu raw array hoặc string)
+  raw_data text // Chuỗi JSON/mảng raw (vd: [9000,4500,...])
+  data text // Có thể lưu thêm dạng khác (hex/base64) tuỳ implement
+
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`] // Thời điểm tạo mã
+}
+
+////////////////////////////////////////////////////
+// 6. COMMANDS (LOG GỬI LỆNH / REQUEST)
+////////////////////////////////////////////////////
+Table commands {
+  _id ObjectId [pk] // ID lệnh
+  user_id ObjectId [not null, ref: > users._id] // Ai bấm nút gửi lệnh
+  controller_id ObjectId [not null, ref: > controllers._id] // ESP sẽ nhận lệnh
+  appliance_id ObjectId [not null, ref: > appliances._id] // Thiết bị IR mục tiêu
+  room_id ObjectId [ref: > rooms._id] // (optional) denormalize để lọc theo phòng nhanh
+  ir_code_id ObjectId [ref: > ir_codes._id] // Mã IR dùng (có thể null nếu action không cần IR)
+
+  action varchar(100) [not null] // Hành động FE gửi: PowerOn, TempDown...
+  topic varchar(200) // Topic BE publish (vd device/<id>/commands)
+  payload text // Payload publish (json string/base64/...)
+
+  status varchar(50) [not null, default: 'queued']
+  // queued: đã tạo log, chờ publish
+  // sent: đã publish mqtt
+  // acked: ESP xác nhận đã thực thi
+  // failed: lỗi publish hoặc ESP báo lỗi
+
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`] // Thời điểm tạo lệnh
+  sent_at datetime // Thời điểm publish mqtt
+  ack_at datetime // Thời điểm nhận ack từ ESP
+  error text // Thông tin lỗi nếu failed (timeout, invalid code...)
+}
+//**** mqtt tới esp sẽ được gửi kèm command_id để update status đúng chuẩn
+
+////////////////////////////////////////////////////
+// 7. TELEMETRY (DỮ LIỆU CẢM BIẾN)
+////////////////////////////////////////////////////
+Table telemetry {
+  _id ObjectId [pk] // ID bản ghi telemetry
+  controller_id ObjectId [not null, ref: > controllers._id] // ESP publish dữ liệu
+  // appliance_id ObjectId [ref: > appliances._id] // (Tuỳ chọn) nếu sensor gắn theo thiết bị cụ thể
+
+  metric varchar(50) [not null] // Loại dữ liệu: temp / humid / light / gas...
+  value float [not null] // Giá trị đo: 25.6, 60.2...
+  unit varchar(20) // Đơn vị: C, %, ppm... (tuỳ chọn)
+
+  topic varchar(200) // Topic nguồn (vd device/<id>/temp)
+  ts datetime [not null, default: `CURRENT_TIMESTAMP`] // Thời điểm đo, gửi từ esp về(QUAN TRỌNG)
+
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`] // Thời điểm BE lưu vào DB
+}

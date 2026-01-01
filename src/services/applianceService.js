@@ -14,9 +14,12 @@ class ApplianceService {
   // Get all appliances for a user (List - Light populate)
   static async getAppliancesByOwner(ownerId) {
     const appliances = await Appliance.find({ owner_id: ownerId })
-      .populate("owner_id", "username")
-      .populate("room_id", "name")
-      .populate("controller_id", "name")
+      // .populate("owner_id", "username")
+      // .populate("room_id", "name")
+      // .populate("controller_id", "name")
+      .populate("owner_id")
+      .populate("room_id")
+      .populate("controller_id")
       .sort({ created_at: -1 });
     return appliances;
   }

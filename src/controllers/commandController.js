@@ -1,5 +1,7 @@
 import CommandService from "../services/commandService.js";
 import Command from "../models/commandModel.js";
+import Controller from "../models/controllerModel.js";
+import Appliance from "../models/applianceModel.js";
 import { errorHandler } from "../utils/errorHandler.js";
 
 // Create new command (kept for backwards compatibility)
@@ -191,56 +193,104 @@ mqttClient.on("error", (err) => {
   console.error("MQTT Error:", err);
 });
 
-const sendCommand = async (req, res) => {
+export const sendCommand = async (req, res) => {
   try {
-    const { id, cmd } = req.params;
+    const user_id = req.user?._id;
+    const {
+      controller_id,
+      appliance_id,
+      action,
+      payload,
+      ir_code_id,
+      room_id: roomIdOverride,
+    } = req.body;
 
-    // 1. Lấy device
-    const device = await Device.findById(id);
-    if (!device) {
-      return res.status(404).json({ error: "Device not found" });
+    if (!user_id) {
+      return res.status(401).json({
+        status: "error",
+        message: "Unauthorized - User ID not found in token",
+      });
     }
 
-    // 2. Lấy command
-    const command = await Command.findById(cmd);
-    if (!command) {
-      return res.status(404).json({ error: "Command not found" });
+    if (!controller_id || !controller_id.trim()) {
+      return errorHandler.missingField(res, "Controller ID");
     }
 
-    // 3. Chuẩn bị payload IR gửi cho ESP32
-    let payload = {};
-
-    if (command.protocol === "RAW") {
-      payload = {
-        protocol: "RAW",
-        freq: command.freq,
-        rawdata: command.rawdata,
-        commandName: command.name,
-      };
-    } else {
-      payload = {
-        protocol: command.protocol,
-        bits: command.bits,
-        data: command.data,
-        commandName: command.name,
-      };
+    if (!appliance_id || !appliance_id.trim()) {
+      return errorHandler.missingField(res, "Appliance ID");
     }
 
-    // 4. MQTT topic cho ESP32
-    const topic = `iot/devices/${device._id}/ir/send`;
+    if (!action || !action.trim()) {
+      return errorHandler.missingField(res, "Action");
+    }
 
-    // 5. Publish MQTT
-    mqttClient.publish(topic, JSON.stringify(payload));
+    const [controller, appliance] = await Promise.all([
+      Controller.findById(controller_id),
+      Appliance.findById(appliance_id),
+    ]);
 
-    return res.json({
-      message: "IR command published to MQTT",
+    if (!controller) {
+      return errorHandler.notFound(res, "Controller");
+    }
+
+    if (!appliance) {
+      return errorHandler.notFound(res, "Appliance");
+    }
+
+    const room_id = roomIdOverride || appliance.room_id;
+
+    // Chọn topic publish: ưu tiên cmd_topic, sau đó base_topic/commands, cuối cùng fallback
+    const normalizedBase = controller.base_topic
+      ? controller.base_topic.replace(/\/$/, "")
+      : null;
+    const topic =
+      controller.cmd_topic ||
+      (normalizedBase ? `${normalizedBase}/commands` : `device/${controller._id}/commands`);
+
+    // Lưu command ở trạng thái queued, rồi publish và update sent
+    const payloadString =
+      typeof payload === "string" ? payload : JSON.stringify(payload || {});
+
+    const commandDoc = await CommandService.createCommand({
+      user_id,
+      controller_id,
+      appliance_id,
+      room_id,
+      ir_code_id,
+      action,
       topic,
-      sentData: payload,
+      payload: payloadString,
+      status: "queued",
+    });
+
+    const mqttBody = {
+      command_id: commandDoc._id,
+      action,
+      controller_id,
+      appliance_id,
+      ir_code_id,
+      payload,
+    };
+
+    mqttClient.publish(topic, JSON.stringify(mqttBody));
+
+    const updatedCommand = await CommandService.updateCommandStatus(
+      commandDoc._id,
+      "sent",
+      { sent_at: new Date() }
+    );
+
+    return res.status(201).json({
+      status: "success",
+      message: "Command created and published",
+      topic,
+      data: updatedCommand,
+      published_payload: mqttBody,
     });
   } catch (error) {
     console.error("Error sending command via MQTT:", error);
-    return res.status(500).json({ error: "Failed to publish IR command" });
+    return errorHandler.handle(res, error);
   }
 };
 
-export { createCommand, sendCommand };
+export { createCommand };
