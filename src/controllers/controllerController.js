@@ -19,7 +19,7 @@ export const createController = async (req, res) => {
 
     const owner_id = req.user?._id;
 
-    console.log(req);
+    // console.log(req);
     if (!owner_id) {
       return res.status(401).json({
         status: "error",

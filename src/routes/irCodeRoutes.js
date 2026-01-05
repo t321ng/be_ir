@@ -6,10 +6,7 @@ import {
   getIrCodeById,
   updateIrCode,
   deleteIrCode,
-  searchIrCodes,
-  getIrCodesByBrand,
-  getIrCodesByDeviceType,
-  getActionsByDeviceType,
+  getIrCodesWithActions,
 } from "../controllers/irCodeController.js";
 
 const router = express.Router();
@@ -18,10 +15,7 @@ const router = express.Router();
 router.post("/", createIrCode); // Create new IR code
 router.get("/", getAllIrCodes); // Get all IR codes for user
 router.get("/public", getPublicIrCodes); // Get public IR codes (library)
-router.get("/search", searchIrCodes); // Search IR codes
-router.get("/brand/:brand", getIrCodesByBrand); // Get IR codes by brand
-router.get("/type/:type", getIrCodesByDeviceType); // Get IR codes by device type
-router.get("/type/:type/actions", getActionsByDeviceType); // Get actions for device type (có query brand)
+router.get("/action", getIrCodesWithActions); // Get IR code IDs + actions by type and brand
 router.get("/:id", getIrCodeById); // Get single IR code
 router.put("/:id", updateIrCode); // Update IR code
 router.patch("/:id", updateIrCode); // Update IR code (alternative)

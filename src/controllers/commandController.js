@@ -2,6 +2,7 @@ import CommandService from "../services/commandService.js";
 import Command from "../models/commandModel.js";
 import Controller from "../models/controllerModel.js";
 import Appliance from "../models/applianceModel.js";
+import IrCode from "../models/irCodeModel.js";
 import { errorHandler } from "../utils/errorHandler.js";
 
 // Create new command (kept for backwards compatibility)
@@ -179,6 +180,11 @@ let options = {
   host: process.env.MQTT_BROKER_URL,
   port: 8883,
   protocol: "mqtts",
+
+  protocolVersion: 4, // MQTT 3.1.1 (BẮT BUỘC)
+  clean: true,        // session sạch
+  reconnectPeriod: 0,
+
   username: process.env.MQTT_USERNAME,
   password: process.env.MQTT_PASSWORD,
 };
@@ -224,6 +230,10 @@ export const sendCommand = async (req, res) => {
       return errorHandler.missingField(res, "Action");
     }
 
+    if (!ir_code_id || !ir_code_id.trim()) {
+      return errorHandler.missingField(res, "IR Code ID");
+    }
+
     const [controller, appliance] = await Promise.all([
       Controller.findById(controller_id),
       Appliance.findById(appliance_id),
@@ -238,6 +248,22 @@ export const sendCommand = async (req, res) => {
     }
 
     const room_id = roomIdOverride || appliance.room_id;
+
+    // Lấy IR code để publish nội dung mã IR
+    const irCode = await IrCode.findById(ir_code_id);
+    if (!irCode) {
+      return errorHandler.notFound(res, "IR Code");
+    }
+
+    // Parse raw_data nếu là JSON array, fallback string nếu parse lỗi
+    let parsedRawData = irCode.raw_data;
+    if (irCode.raw_data) {
+      try {
+        parsedRawData = JSON.parse(irCode.raw_data);
+      } catch (_e) {
+        parsedRawData = irCode.raw_data;
+      }
+    }
 
     // Chọn topic publish: ưu tiên cmd_topic, sau đó base_topic/commands, cuối cùng fallback
     const normalizedBase = controller.base_topic
@@ -269,11 +295,38 @@ export const sendCommand = async (req, res) => {
       controller_id,
       appliance_id,
       ir_code_id,
-      payload,
+      protocol: irCode.protocol,
+      frequency: irCode.frequency,
+      bits: irCode.bits,
+      raw_data: parsedRawData,
+      data: irCode.data,
+      brand: irCode.brand,
+      device_type: irCode.device_type,
     };
 
-    mqttClient.publish(topic, JSON.stringify(mqttBody));
+    // Đính kèm payload tùy chọn từ FE (metadata thêm)
+    if (payload !== undefined) {
+      mqttBody.meta = payload;
+    }
 
+    console.log("sending to " + topic);
+    // mqttClient.publish(topic, JSON.stringify(mqttBody));
+
+    mqttClient.publish(
+      topic,
+      JSON.stringify(mqttBody),
+      { qos: 1, retain: true  }, // QoS1 để broker xác nhận
+      (err) => {
+        if (err) {
+          console.error("❌ Publish failed:", err);
+        } else {
+          console.log("✅ Publish success (broker acknowledged)");
+        }
+      }
+    );
+
+
+    console.log("sended to " + topic);
     const updatedCommand = await CommandService.updateCommandStatus(
       commandDoc._id,
       "sent",

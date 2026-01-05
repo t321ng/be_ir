@@ -70,7 +70,52 @@ curl -X POST http://localhost:5000/api/auth/register \
 
 ---
 
-### 1.2. Xác thực email
+### 1.2. Đăng nhập
+
+**Endpoint:** `POST /api/auth/login`
+
+**Request:**
+```bash
+curl -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "nguyenvana@example.com",
+    "password": "SecurePass123!"
+  }'
+```
+
+**Request Body:**
+```json
+{
+  "email": "nguyenvana@example.com",
+  "password": "SecurePass123!"
+}
+```
+
+**Response 200 (Success):**
+```json
+{
+  "status": "success",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": "676abc123def456789012345",
+      "email": "nguyenvana@example.com",
+      "username": "nguyenvana",
+      "role": "user"
+    }
+  }
+}
+```
+
+**Errors:**
+- `400` - Email hoặc password thiếu
+- `401` - Email hoặc password không đúng
+- `403` - Email chưa được xác thực
+
+---
+
+### 1.3. Xác thực email
 
 **Endpoint:** `POST /api/auth/verify-email`
 
@@ -99,11 +144,273 @@ curl -X POST http://localhost:5000/api/auth/verify-email \
   "data": {
     "message": "Email verified successfully"
   }
-## 7. Commands (Protected)
+}
+```
 
-Hiện tại chỉ bật một endpoint gọn cho FE: gửi lệnh, publish MQTT và ghi log DB cùng lúc. Các endpoint liệt kê/patch/pending cũ đang tạm comment (legacy).
+**Errors:**
+- `400` - Email hoặc code thiếu
+- `404` - User không tồn tại
+- `409` - Email đã được xác thực trước đó
+- `410` - Mã xác nhận đã hết hạn
+- `401` - Mã xác nhận không chính xác
 
-### 7.1. Gửi lệnh + publish MQTT + log DB
+---
+
+### 1.4. Gửi lại mã xác nhận
+
+**Endpoint:** `POST /api/auth/resend-code`
+
+**Request:**
+```bash
+curl -X POST http://localhost:5000/api/auth/resend-code \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "nguyenvana@example.com"
+  }'
+```
+
+**Request Body:**
+```json
+{
+  "email": "nguyenvana@example.com"
+}
+```
+
+**Response 200 (Success):**
+```json
+{
+  "status": "success",
+  "data": {
+    "message": "Verification code resent successfully"
+  }
+}
+```
+
+**Errors:**
+- `400` - Email thiếu
+- `404` - User không tồn tại
+- `409` - Email đã được xác thực
+- `429` - Gửi lại quá nhanh (phải chờ ít nhất 1 phút)
+
+---
+
+## 2. Users (Protected)
+
+### 2.1. Tạo user mới (Admin only)
+
+**Endpoint:** `POST /api/users`
+
+**Request:**
+```bash
+curl -X POST http://localhost:5000/api/users \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "newuser123",
+    "email": "newuser@example.com",
+    "password_hash": "hashed_password_here",
+    "role": "user"
+  }'
+```
+
+**Request Body:**
+```json
+{
+  "username": "newuser123",
+  "email": "newuser@example.com",
+  "password_hash": "hashed_password_here",
+  "role": "user"
+}
+```
+
+**Response 201:**
+```json
+{
+  "status": "success",
+  "message": "User created successfully",
+  "data": {
+    "_id": "676abc123def456789012346",
+    "username": "newuser123",
+    "email": "newuser@example.com",
+    "role": "user",
+    "is_verified": false,
+    "created_at": "2025-12-22T10:30:00.000Z"
+  }
+}
+```
+
+**Note:** `password_hash` không được trả về trong response vì lý do bảo mật.
+
+**Errors:**
+- `400` - Username, email hoặc password_hash thiếu
+- `400` - Role không hợp lệ (phải là 'user' hoặc 'admin')
+- `409` - Username hoặc email đã tồn tại
+
+---
+
+### 2.2. Lấy danh sách users
+
+**Endpoint:** `GET /api/users`
+
+**Request:**
+```bash
+curl -X GET http://localhost:5000/api/users \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "count": 5,
+  "data": [
+    {
+      "_id": "676abc123def456789012345",
+      "username": "nguyenvana",
+      "email": "nguyenvana@example.com",
+      "role": "admin",
+      "is_verified": true,
+      "created_at": "2025-12-20T08:00:00.000Z"
+    },
+    {
+      "_id": "676abc123def456789012346",
+      "username": "newuser123",
+      "email": "newuser@example.com",
+      "role": "user",
+      "is_verified": false,
+      "created_at": "2025-12-22T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+**Note:** `password_hash` không được trả về trong danh sách.
+
+---
+
+### 2.3. Lấy thông tin user theo ID
+
+**Endpoint:** `GET /api/users/:id`
+
+**Request:**
+```bash
+curl -X GET http://localhost:5000/api/users/676abc123def456789012345 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "data": {
+    "_id": "676abc123def456789012345",
+    "username": "nguyenvana",
+    "email": "nguyenvana@example.com",
+    "role": "admin",
+    "is_verified": true,
+    "created_at": "2025-12-20T08:00:00.000Z",
+    "updated_at": "2025-12-22T10:00:00.000Z"
+  }
+}
+```
+
+**Errors:**
+- `400` - ID không hợp lệ
+- `404` - User không tồn tại
+
+---
+
+### 2.4. Cập nhật user
+
+**Endpoint:** `PUT /api/users/:id` hoặc `PATCH /api/users/:id`
+
+**Request:**
+```bash
+curl -X PUT http://localhost:5000/api/users/676abc123def456789012345 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "nguyenvana_updated",
+    "role": "admin"
+  }'
+```
+
+**Request Body:**
+```json
+{
+  "username": "nguyenvana_updated",
+  "email": "newemail@example.com",
+  "password_hash": "new_hashed_password",
+  "role": "admin"
+}
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "message": "User updated successfully",
+  "data": {
+    "_id": "676abc123def456789012345",
+    "username": "nguyenvana_updated",
+    "email": "nguyenvana@example.com",
+    "role": "admin",
+    "updated_at": "2025-12-22T11:00:00.000Z"
+  }
+}
+```
+
+**Errors:**
+- `400` - ID không hợp lệ hoặc không có dữ liệu để cập nhật
+- `400` - Role không hợp lệ
+- `404` - User không tồn tại
+- `409` - Username hoặc email mới đã tồn tại
+
+---
+
+### 2.5. Xóa user
+
+**Endpoint:** `DELETE /api/users/:id` hoặc `PATCH /api/users/:id`
+
+**Endpoint:** `GET /api/users`
+
+**Request:**
+```bash
+curl -X GET http://localhost:5000/api/users \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "count": 5,
+  "data": [
+    {
+      "_id": "676abc123def456789012345",
+      "username": "nguyenvana",
+      "email": "nguyenvana@example.com",
+      "role": "admin",
+      "is_verified": true,
+      "created_at": "2025-12-20T08:00:00.000Z"
+    },
+    {
+      "_id": "676abc123def456789012346",
+      "username": "newuser123",
+      "email": "newuser@example.com",
+      "role": "user",
+      "is_verified": false,
+      "created_at": "2025-12-22T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+**Note:** `password_hash` không được trả về trong danh sách.
+
+---
+
+### 2.3. Lấy thông tin user theo IDs (Admin only)
 
 **Endpoint:** `POST /api/commands/send`
 
@@ -116,9 +423,9 @@ curl -X POST http://localhost:5000/api/commands/send \
     "controller_id": "676ctrl123abc456def789abc",
     "appliance_id": "676appl123abc456def789xyz",
     "action": "PowerOn",
-    "payload": {"mode": "cool", "temp": 25},
     "ir_code_id": "676ircd123abc456def789qwe",
-    "room_id": "676room123abc456def789012"
+    "room_id": "676room123abc456def789012",
+    "payload": {"note": "optional meta"}
   }'
 ```
 
@@ -128,40 +435,47 @@ curl -X POST http://localhost:5000/api/commands/send \
   "controller_id": "676ctrl123abc456def789abc",
   "appliance_id": "676appl123abc456def789xyz",
   "action": "PowerOn",
-  "payload": {"mode": "cool", "temp": 25},
   "ir_code_id": "676ircd123abc456def789qwe",
-  "room_id": "676room123abc456def789012"
+  "room_id": "676room123abc456def789012",
+  "payload": {"note": "optional meta"}
 }
 ```
 
-Lưu ý: `user_id` lấy từ JWT, không cần truyền vào body.
+Lưu ý: `user_id` lấy từ JWT, không cần truyền vào body. `ir_code_id` là bắt buộc; server sẽ nạp toàn bộ nội dung IR code để publish.
 
 **Response 201:**
 ```json
 {
   "status": "success",
   "message": "Command created and published",
-  "topic": "iot/livingroom/esp32_001/commands",
+  "topic": "device/676ctrl123abc456def789abc/commands",
   "published_payload": {
     "command_id": "676cmd123abc456def789rst",
     "action": "PowerOn",
     "controller_id": "676ctrl123abc456def789abc",
     "appliance_id": "676appl123abc456def789xyz",
     "ir_code_id": "676ircd123abc456def789qwe",
-    "payload": {"mode": "cool", "temp": 25}
+    "protocol": "raw",
+    "frequency": 38000,
+    "bits": 32,
+    "raw_data": [9000,4500,560,560,560,1680,560,560],
+    "data": "0xFF00AB45",
+    "brand": "Daikin",
+    "device_type": "air_conditioner",
+    "meta": {"note": "optional meta"}
   },
   "data": {
     "_id": "676cmd123abc456def789rst",
     "status": "sent",
     "sent_at": "2025-12-22T16:00:01.500Z",
     "action": "PowerOn",
-    "topic": "iot/livingroom/esp32_001/commands",
-    "payload": "{\"mode\":\"cool\",\"temp\":25}",
+    "topic": "device/676ctrl123abc456def789abc/commands",
+    "payload": "{\"note\":\"optional meta\"}",
     "controller_id": {
       "_id": "676ctrl123abc456def789abc",
       "name": "ESP32 Phong Khach",
       "online": true,
-      "cmd_topic": "iot/livingroom/esp32_001/commands",
+      "cmd_topic": "device/676ctrl123abc456def789abc/commands",
       "ack_topic": "iot/livingroom/esp32_001/acks",
       "status_topic": "iot/livingroom/esp32_001/status"
     },
@@ -192,6 +506,8 @@ Lưu ý: `user_id` lấy từ JWT, không cần truyền vào body.
 ```
 
 **Topic chọn tự động:** ưu tiên `cmd_topic`; nếu không có thì dùng `base_topic/commands`; nếu thiếu cả hai thì fallback `device/<controller_id>/commands`.
+
+**Nội dung MQTT publish:** chứa đầy đủ IR code (protocol, bits, frequency, raw_data/data, brand, device_type) + metadata tùy chọn từ `payload` (đặt trong trường `meta`).
 
 **Endpoints legacy (tạm tắt):** `POST /api/commands`, `GET /api/commands`, `GET /api/commands/pending`, `GET /api/commands/status/:status`, `PATCH /api/commands/:id/status`, `POST /api/commands/devices/:id/commands/:cmd/send`.
 ```json
@@ -233,6 +549,10 @@ curl -X DELETE http://localhost:5000/api/users/676abc123def456789012345 \
 }
 ```
 
+**Errors:**
+- `400` - ID không hợp lệ
+- `404` - User không tồn tại
+
 ---
 
 ## 3. Rooms (Protected)
@@ -248,8 +568,7 @@ curl -X POST http://localhost:5000/api/rooms \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Phòng khách",
-    "description": "Phòng khách tầng 1",
-    "owner_id": "676abc123def456789012345"
+    "description": "Phòng khách tầng 1"
   }'
 ```
 
@@ -257,10 +576,11 @@ curl -X POST http://localhost:5000/api/rooms \
 ```json
 {
   "name": "Phòng khách",
-  "description": "Phòng khách tầng 1",
-  "owner_id": "676abc123def456789012345"
+  "description": "Phòng khách tầng 1"
 }
 ```
+
+**Note:** `owner_id` được lấy tự động từ JWT token, không cần truyền trong body.
 
 **Response 201:**
 ```json
@@ -282,11 +602,14 @@ curl -X POST http://localhost:5000/api/rooms \
 }
 ```
 
+**Errors:**
+- `400` - Tên phòng thiếu hoặc rỗng
+- `401` - Không có token hoặc token không hợp lệ
+- `409` - Tên phòng đã tồn tại cho user này
+
 ---
 
 ### 3.2. Lấy danh sách phòng của user
-
-**Endpoint:** `GET /api/rooms?owner_id={userId}`
 
 **Request:**
 ```bash
@@ -594,15 +917,211 @@ curl -X PATCH http://localhost:5000/api/controllers/676ctrl123abc456def789abc/st
 
 ---
 
-### 4.4. Lấy controllers đang online
+### 4.4. Lấy controller theo ID
 
-**Endpoint:** `GET /api/controllers/online?owner_id={userId}`
+**Endpoint:** `GET /api/controllers/:id`
 
 **Request:**
 ```bash
-curl -X GET "http://localhost:5000/api/controllers/online?owner_id=676abc123def456789012345" \
+curl -X GET http://localhost:5000/api/controllers/676ctrl123abc456def789abc \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "data": {
+    "_id": "676ctrl123abc456def789abc",
+    "owner_id": {
+      "_id": "676abc123def456789012345",
+      "username": "nguyenvana",
+      "email": "nguyenvana@example.com"
+    },
+    "room_id": {
+      "_id": "676room123abc456def789012",
+      "name": "Phòng khách"
+    },
+    "name": "ESP32 Phòng Khách",
+    "description": "Controller chính điều khiển IR",
+    "mqtt_client_id": "esp32_livingroom_001",
+    "base_topic": "iot/livingroom/esp32_001",
+    "cmd_topic": "iot/livingroom/esp32_001/commands",
+    "status_topic": "iot/livingroom/esp32_001/status",
+    "ack_topic": "iot/livingroom/esp32_001/acks",
+    "online": true,
+    "last_seen": "2025-12-22T13:00:00.000Z",
+    "has_ir": true,
+    "has_sensors": true,
+    "created_at": "2025-12-22T12:00:00.000Z",
+    "updated_at": "2025-12-22T13:00:00.000Z"
+  }
+}
+```
+
+**Errors:**
+- `400` - ID không hợp lệ
+- `404` - Controller không tồn tại
+- `401` - Không có quyền truy cập (không phải owner)
+
+---
+
+### 4.5. Cập nhật controller
+
+**Endpoint:** `PUT /api/controllers/:id` hoặc `PATCH /api/controllers/:id`
+
+**Request:**
+```bash
+curl -X PUT http://localhost:5000/api/controllers/676ctrl123abc456def789abc \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "ESP32 Phòng Khách - Updated",
+    "description": "Controller chính điều khiển IR - Cập nhật 2024",
+    "room_id": "676room123abc456def789013",
+    "has_sensors": false
+  }'
+```
+
+**Request Body:**
+```json
+{
+  "name": "ESP32 Phòng Khách - Updated",
+  "description": "Controller chính điều khiển IR - Cập nhật 2024",
+  "room_id": "676room123abc456def789013",
+  "mqtt_client_id": "esp32_livingroom_001_v2",
+  "base_topic": "iot/livingroom/esp32_001_v2",
+  "cmd_topic": "iot/livingroom/esp32_001_v2/commands",
+  "status_topic": "iot/livingroom/esp32_001_v2/status",
+  "ack_topic": "iot/livingroom/esp32_001_v2/acks",
+  "has_ir": true,
+  "has_sensors": false
+}
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "message": "Controller updated successfully",
+  "data": {
+    "_id": "676ctrl123abc456def789abc",
+    "name": "ESP32 Phòng Khách - Updated",
+    "description": "Controller chính điều khiển IR - Cập nhật 2024",
+    "room_id": {
+      "_id": "676room123abc456def789013",
+      "name": "Phòng ngủ"
+    },
+    "mqtt_client_id": "esp32_livingroom_001_v2",
+    "base_topic": "iot/livingroom/esp32_001_v2",
+    "cmd_topic": "iot/livingroom/esp32_001_v2/commands",
+    "has_ir": true,
+    "has_sensors": false,
+    "updated_at": "2025-12-22T14:30:00.000Z"
+  }
+}
+```
+
+**Errors:**
+- `400` - ID không hợp lệ hoặc không có dữ liệu để cập nhật
+- `404` - Controller không tồn tại
+- `401` - Không có quyền truy cập
+
+---
+
+### 4.6. Xóa controller
+
+**Endpoint:** `DELETE /api/controllers/:id`
+
+**Request:**
+```bash
+curl -X DELETE http://localhost:5000/api/controllers/676ctrl123abc456def789abc \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "message": "Controller deleted successfully",
+  "data": {
+    "_id": "676ctrl123abc456def789abc",
+    "name": "ESP32 Phòng Khách - Updated"
+  }
+}
+```
+
+**Errors:**
+- `400` - ID không hợp lệ
+- `404` - Controller không tồn tại
+- `401` - Không có quyền truy cập
+
+**Note:** Khi xóa controller, tất cả các appliances liên kết sẽ bị ảnh hưởng. Nên kiểm tra trước khi xóa.
+
+---
+
+### 4.7. Lấy controllers theo phòng
+
+**Endpoint:** `GET /api/controllers/room/:roomId`
+
+**Request:**
+```bash
+curl -X GET http://localhost:5000/api/controllers/room/676room123abc456def789012 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "count": 2,
+  "data": [
+    {
+      "_id": "676ctrl123abc456def789abc",
+      "name": "ESP32 Phòng Khách",
+      "mqtt_client_id": "esp32_livingroom_001",
+      "online": true,
+      "last_seen": "2025-12-22T13:00:00.000Z",
+      "has_ir": true,
+      "has_sensors": true,
+      "room_id": {
+        "_id": "676room123abc456def789012",
+        "name": "Phòng khách"
+      }
+    },
+    {
+      "_id": "676ctrl123abc456def789abd",
+      "name": "ESP32 Phòng Khách Secondary",
+      "mqtt_client_id": "esp32_livingroom_002",
+      "online": false,
+      "has_ir": false,
+      "has_sensors": true,
+      "room_id": {
+        "_id": "676room123abc456def789012",
+        "name": "Phòng khách"
+      }
+    }
+  ]
+}
+```
+
+**Errors:**
+- `400` - Room ID không hợp lệ
+- `404` - Không tìm thấy controllers cho phòng này
+
+---
+
+### 4.8. Lấy controllers đang online
+
+**Endpoint:** `GET /api/controllers/online`
+
+**Request:**
+```bash
+curl -X GET http://localhost:5000/api/controllers/online \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Note:** `owner_id` được lấy tự động từ JWT token.
 
 **Response 200:**
 ```json
@@ -618,11 +1137,17 @@ curl -X GET "http://localhost:5000/api/controllers/online?owner_id=676abc123def4
       "room_id": {
         "_id": "676room123abc456def789012",
         "name": "Phòng khách"
-      }
+      },
+      "mqtt_client_id": "esp32_livingroom_001",
+      "has_ir": true,
+      "has_sensors": true
     }
   ]
 }
 ```
+
+**Errors:**
+- `401` - Không có quyền truy cập
 
 ---
 
@@ -754,13 +1279,263 @@ curl -X GET "http://localhost:5000/api/appliances?owner_id=676abc123def456789012
 
 ---
 
-### 5.3. Lấy appliances theo loại
+### 5.3. Lấy appliance theo ID
 
-**Endpoint:** `GET /api/appliances/type/:type?owner_id={userId}`
+**Endpoint:** `GET /api/appliances/:id`
 
 **Request:**
 ```bash
-curl -X GET "http://localhost:5000/api/appliances/type/air_conditioner?owner_id=676abc123def456789012345" \
+curl -X GET http://localhost:5000/api/appliances/676appl123abc456def789xyz \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "data": {
+    "_id": "676appl123abc456def789xyz",
+    "owner_id": {
+      "_id": "676abc123def456789012345",
+      "username": "nguyenvana",
+      "email": "nguyenvana@example.com"
+    },
+    "room_id": {
+      "_id": "676room123abc456def789012",
+      "name": "Phòng khách"
+    },
+    "controller_id": {
+      "_id": "676ctrl123abc456def789abc",
+      "name": "ESP32 Phòng Khách",
+      "online": true
+    },
+    "name": "Máy lạnh Daikin Inverter",
+    "brand": "Daikin",
+    "device_type": "air_conditioner",
+    "description": "Máy lạnh 12000BTU Inverter",
+    "created_at": "2025-12-22T14:00:00.000Z",
+    "updated_at": "2025-12-22T14:00:00.000Z"
+  }
+}
+```
+
+**Errors:**
+- `400` - ID không hợp lệ
+- `404` - Appliance không tồn tại
+- `401` - Không có quyền truy cập (không phải owner)
+
+---
+
+### 5.4. Cập nhật appliance
+
+**Endpoint:** `PUT /api/appliances/:id` hoặc `PATCH /api/appliances/:id`
+
+**Request:**
+```bash
+curl -X PUT http://localhost:5000/api/appliances/676appl123abc456def789xyz \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Máy lạnh Daikin Inverter 2024",
+    "description": "Máy lạnh 12000BTU Inverter - Model 2024",
+    "room_id": "676room123abc456def789013"
+  }'
+```
+
+**Request Body:**
+```json
+{
+  "name": "Máy lạnh Daikin Inverter 2024",
+  "brand": "Daikin",
+  "device_type": "air_conditioner",
+  "description": "Máy lạnh 12000BTU Inverter - Model 2024",
+  "room_id": "676room123abc456def789013",
+  "controller_id": "676ctrl123abc456def789abc"
+}
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "message": "Appliance updated successfully",
+  "data": {
+    "_id": "676appl123abc456def789xyz",
+    "name": "Máy lạnh Daikin Inverter 2024",
+    "brand": "Daikin",
+    "device_type": "air_conditioner",
+    "description": "Máy lạnh 12000BTU Inverter - Model 2024",
+    "room_id": {
+      "_id": "676room123abc456def789013",
+      "name": "Phòng ngủ"
+    },
+    "controller_id": {
+      "_id": "676ctrl123abc456def789abc",
+      "name": "ESP32 Phòng Khách"
+    },
+    "updated_at": "2025-12-22T15:30:00.000Z"
+  }
+}
+```
+
+**Errors:**
+- `400` - ID không hợp lệ hoặc không có dữ liệu để cập nhật
+- `404` - Appliance không tồn tại
+- `401` - Không có quyền truy cập
+
+---
+
+### 5.5. Xóa appliance
+
+**Endpoint:** `DELETE /api/appliances/:id`
+
+**Request:**
+```bash
+curl -X DELETE http://localhost:5000/api/appliances/676appl123abc456def789xyz \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "message": "Appliance deleted successfully",
+  "data": {
+    "_id": "676appl123abc456def789xyz",
+    "name": "Máy lạnh Daikin Inverter 2024"
+  }
+}
+```
+
+**Errors:**
+- `400` - ID không hợp lệ
+- `404` - Appliance không tồn tại
+- `401` - Không có quyền truy cập
+
+---
+
+### 5.6. Lấy appliances theo phòng
+
+**Endpoint:** `GET /api/appliances/room/:roomId`
+
+**Request:**
+```bash
+curl -X GET http://localhost:5000/api/appliances/room/676room123abc456def789012 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "count": 2,
+  "data": [
+    {
+      "_id": "676appl123abc456def789xyz",
+      "name": "Máy lạnh Daikin Inverter",
+      "brand": "Daikin",
+      "device_type": "air_conditioner",
+      "room_id": {
+        "_id": "676room123abc456def789012",
+        "name": "Phòng khách"
+      },
+      "controller_id": {
+        "_id": "676ctrl123abc456def789abc",
+        "name": "ESP32 Phòng Khách",
+        "online": true
+      }
+    },
+    {
+      "_id": "676appl123abc456def789xy1",
+      "name": "TV Samsung 55 inch",
+      "brand": "Samsung",
+      "device_type": "tv",
+      "room_id": {
+        "_id": "676room123abc456def789012",
+        "name": "Phòng khách"
+      },
+      "controller_id": {
+        "_id": "676ctrl123abc456def789abc",
+        "name": "ESP32 Phòng Khách",
+        "online": true
+      }
+    }
+  ]
+}
+```
+
+**Errors:**
+- `400` - Room ID không hợp lệ
+- `404` - Không tìm thấy appliances cho phòng này
+
+---
+
+### 5.7. Lấy appliances theo controller
+
+**Endpoint:** `GET /api/appliances/controller/:controllerId`
+
+**Request:**
+```bash
+curl -X GET http://localhost:5000/api/appliances/controller/676ctrl123abc456def789abc \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "count": 3,
+  "data": [
+    {
+      "_id": "676appl123abc456def789xyz",
+      "name": "Máy lạnh Daikin Inverter",
+      "brand": "Daikin",
+      "device_type": "air_conditioner",
+      "controller_id": {
+        "_id": "676ctrl123abc456def789abc",
+        "name": "ESP32 Phòng Khách",
+        "online": true
+      }
+    },
+    {
+      "_id": "676appl123abc456def789xy1",
+      "name": "TV Samsung 55 inch",
+      "brand": "Samsung",
+      "device_type": "tv",
+      "controller_id": {
+        "_id": "676ctrl123abc456def789abc",
+        "name": "ESP32 Phòng Khách",
+        "online": true
+      }
+    },
+    {
+      "_id": "676appl123abc456def789xy2",
+      "name": "Quạt Panasonic",
+      "brand": "Panasonic",
+      "device_type": "fan",
+      "controller_id": {
+        "_id": "676ctrl123abc456def789abc",
+        "name": "ESP32 Phòng Khách",
+        "online": true
+      }
+    }
+  ]
+}
+```
+
+**Errors:**
+- `400` - Controller ID không hợp lệ
+- `404` - Không tìm thấy appliances cho controller này
+
+---
+
+### 5.8. Lấy appliances theo loại thiết bị
+
+**Endpoint:** `GET /api/appliances/type/:type`
+
+**Request:**
+```bash
+curl -X GET http://localhost:5000/api/appliances/type/air_conditioner \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
@@ -788,6 +1563,12 @@ curl -X GET "http://localhost:5000/api/appliances/type/air_conditioner?owner_id=
   ]
 }
 ```
+
+**Note:** Các loại thiết bị phổ biến: `air_conditioner`, `tv`, `fan`, `light`, `speaker`, etc.
+
+**Errors:**
+- `400` - Device type không hợp lệ
+- `404` - Không tìm thấy appliances với loại này
 
 ---
 
@@ -858,13 +1639,75 @@ curl -X POST http://localhost:5000/api/ir-codes \
 
 ---
 
-### 6.2. Tìm kiếm mã IR
+### 6.2. Lấy danh sách IR codes với ID + action theo device type
 
-**Endpoint:** `GET /api/ir-codes/search?brand={brand}&device_type={type}&action={action}`
+**Endpoint:** `GET /api/ir-codes/action?type={device_type}&brand={brand}`
 
 **Request:**
 ```bash
-curl -X GET "http://localhost:5000/api/ir-codes/search?brand=Daikin&device_type=air_conditioner&action=PowerOn&owner_id=676abc123def456789012345" \
+curl -X GET "http://localhost:5000/api/ir-codes/action?type=air_conditioner&brand=Daikin" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Query Parameters:**
+- `type` (bắt buộc) - Loại thiết bị (air_conditioner, tv, fan, light, speaker, etc.)
+- `brand` (tùy chọn) - Thương hiệu để lọc thêm
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "count": 5,
+  "data": [
+    {
+      "_id": "676ircd123abc456def789qwe",
+      "action": "ModeAuto",
+      "brand": "Daikin",
+      "protocol": "raw"
+    },
+    {
+      "_id": "676ircd123abc456def789qw1",
+      "action": "ModeCool",
+      "brand": "Daikin",
+      "protocol": "raw"
+    },
+    {
+      "_id": "676ircd123abc456def789qw2",
+      "action": "PowerOff",
+      "brand": "Daikin",
+      "protocol": "raw"
+    },
+    {
+      "_id": "676ircd123abc456def789qw3",
+      "action": "PowerOn",
+      "brand": "Daikin",
+      "protocol": "raw"
+    },
+    {
+      "_id": "676ircd123abc456def789qw4",
+      "action": "TempDown",
+      "brand": "Daikin",
+      "protocol": "raw"
+    }
+  ]
+}
+```
+
+**Errors:**
+- `400` - Device type (type parameter) thiếu
+- `404` - Không tìm thấy IR codes với điều kiện này
+
+**Lưu ý:** Endpoint này trả về danh sách các IR codes kèm ID và action tương ứng. Dữ liệu sắp xếp theo action. Có thể lọc thêm theo brand bằng query parameter `?brand={brand}`.
+
+---
+
+### 6.3. Lấy mã IR theo ID
+
+**Endpoint:** `GET /api/ir-codes/:id`
+
+**Request:**
+```bash
+curl -X GET http://localhost:5000/api/ir-codes/676ircd123abc456def789qwe \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
@@ -872,7 +1715,131 @@ curl -X GET "http://localhost:5000/api/ir-codes/search?brand=Daikin&device_type=
 ```json
 {
   "status": "success",
-  "count": 2,
+  "data": {
+    "_id": "676ircd123abc456def789qwe",
+    "owner_id": {
+      "_id": "676abc123def456789012345",
+      "username": "nguyenvana",
+      "email": "nguyenvana@example.com"
+    },
+    "brand": "Daikin",
+    "device_type": "air_conditioner",
+    "action": "PowerOn",
+    "protocol": "raw",
+    "frequency": 38000,
+    "bits": 32,
+    "raw_data": "[9000,4500,560,560,560,1680,560,560...]",
+    "data": "0xFF00AB45",
+    "created_at": "2025-12-22T15:00:00.000Z",
+    "updated_at": "2025-12-22T15:00:00.000Z"
+  }
+}
+```
+
+**Errors:**
+- `400` - ID không hợp lệ
+- `404` - IR Code không tồn tại
+
+---
+
+### 6.4. Cập nhật mã IR
+
+**Endpoint:** `PUT /api/ir-codes/:id` hoặc `PATCH /api/ir-codes/:id`
+
+**Request:**
+```bash
+curl -X PUT http://localhost:5000/api/ir-codes/676ircd123abc456def789qwe \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "PowerOff",
+    "frequency": 38000,
+    "bits": 32
+  }'
+```
+
+**Request Body:**
+```json
+{
+  "action": "PowerOff",
+  "frequency": 38000,
+  "bits": 32,
+  "raw_data": "[9000,4500,560,560...]",
+  "data": "0xFF00AB46"
+}
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "message": "IR code updated successfully",
+  "data": {
+    "_id": "676ircd123abc456def789qwe",
+    "brand": "Daikin",
+    "device_type": "air_conditioner",
+    "action": "PowerOff",
+    "protocol": "raw",
+    "frequency": 38000,
+    "bits": 32,
+    "data": "0xFF00AB46",
+    "updated_at": "2025-12-22T16:00:00.000Z"
+  }
+}
+```
+
+**Errors:**
+- `400` - ID không hợp lệ hoặc không có dữ liệu để cập nhật
+- `404` - IR Code không tồn tại
+- `401` - Không có quyền truy cập (chỉ owner mới có thể cập nhật)
+
+---
+
+### 6.5. Xóa mã IR
+
+**Endpoint:** `DELETE /api/ir-codes/:id`
+
+**Request:**
+```bash
+curl -X DELETE http://localhost:5000/api/ir-codes/676ircd123abc456def789qwe \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "message": "IR code deleted successfully",
+  "data": {
+    "_id": "676ircd123abc456def789qwe",
+    "action": "PowerOff",
+    "brand": "Daikin"
+  }
+}
+```
+
+**Errors:**
+- `400` - ID không hợp lệ
+- `404` - IR Code không tồn tại
+- `401` - Không có quyền truy cập (chỉ owner mới có thể xóa)
+
+---
+
+### 6.6. Lấy tất cả mã IR của user
+
+**Endpoint:** `GET /api/ir-codes`
+
+**Request:**
+```bash
+curl -X GET http://localhost:5000/api/ir-codes \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "count": 3,
   "data": [
     {
       "_id": "676ircd123abc456def789qwe",
@@ -883,35 +1850,35 @@ curl -X GET "http://localhost:5000/api/ir-codes/search?brand=Daikin&device_type=
       "brand": "Daikin",
       "device_type": "air_conditioner",
       "action": "PowerOn",
-      "protocol": "raw",
-      "frequency": 38000,
-      "raw_data": "[9000,4500,560,560...]"
+      "protocol": "raw"
     },
     {
       "_id": "676ircd123abc456def789qw1",
-      "owner_id": null,
       "brand": "Daikin",
       "device_type": "air_conditioner",
+      "action": "PowerOff",
+      "protocol": "raw"
+    },
+    {
+      "_id": "676ircd123abc456def789qw2",
+      "brand": "Samsung",
+      "device_type": "tv",
       "action": "PowerOn",
-      "protocol": "nec",
-      "frequency": 38000,
-      "data": "0xFF00AB45"
+      "protocol": "nec"
     }
   ]
 }
 ```
 
-**Note:** Kết quả bao gồm cả mã IR của user và mã public (owner_id = null).
-
 ---
 
-### 6.3. Lấy danh sách actions theo device type
+### 6.7. Lấy mã IR công cộng (Public Library)
 
-**Endpoint:** `GET /api/ir-codes/type/:type/actions?brand={brand}`
+**Endpoint:** `GET /api/ir-codes/public`
 
 **Request:**
 ```bash
-curl -X GET "http://localhost:5000/api/ir-codes/type/air_conditioner/actions?brand=Daikin" \
+curl -X GET http://localhost:5000/api/ir-codes/public \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
@@ -919,23 +1886,30 @@ curl -X GET "http://localhost:5000/api/ir-codes/type/air_conditioner/actions?bra
 ```json
 {
   "status": "success",
+  "count": 50,
   "data": [
-    "PowerOn",
-    "PowerOff",
-    "TempUp",
-    "TempDown",
-    "ModeAuto",
-    "ModeCool",
-    "ModeHeat",
-    "ModeDry",
-    "FanLow",
-    "FanMed",
-    "FanHigh",
-    "SwingOn",
-    "SwingOff"
+    {
+      "_id": "676ircd123abc456def789qp1",
+      "owner_id": null,
+      "brand": "Daikin",
+      "device_type": "air_conditioner",
+      "action": "PowerOn",
+      "protocol": "raw",
+      "frequency": 38000
+    },
+    {
+      "_id": "676ircd123abc456def789qp2",
+      "owner_id": null,
+      "brand": "Samsung",
+      "device_type": "tv",
+      "action": "PowerOn",
+      "protocol": "nec"
+    }
   ]
 }
 ```
+
+**Note:** Mã IR công cộng (owner_id = null) có thể được sử dụng bởi tất cả user.
 
 ---
 
@@ -1261,7 +2235,93 @@ curl -X POST http://localhost:5000/api/telemetry/bulk \
 
 ---
 
-### 8.3. Lấy telemetry mới nhất
+### 8.3. Lấy telemetry theo controller
+
+**Endpoint:** `GET /api/telemetry/controller/:controllerId`
+
+**Request:**
+```bash
+curl -X GET http://localhost:5000/api/telemetry/controller/676ctrl123abc456def789abc \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "count": 10,
+  "data": [
+    {
+      "_id": "676tele123abc456def789uv1",
+      "controller_id": "676ctrl123abc456def789abc",
+      "metric": "temperature",
+      "value": 26.5,
+      "unit": "C",
+      "topic": "iot/livingroom/esp32_001/temp",
+      "ts": "2025-12-22T16:30:00.000Z",
+      "created_at": "2025-12-22T16:30:01.000Z"
+    },
+    {
+      "_id": "676tele123abc456def789uv2",
+      "controller_id": "676ctrl123abc456def789abc",
+      "metric": "humidity",
+      "value": 65.2,
+      "unit": "%",
+      "ts": "2025-12-22T16:30:00.000Z",
+      "created_at": "2025-12-22T16:30:01.000Z"
+    }
+  ]
+}
+```
+
+**Errors:**
+- `400` - Controller ID không hợp lệ
+- `404` - Không tìm thấy telemetry cho controller này
+
+---
+
+### 8.4. Lấy telemetry theo khoảng thời gian
+
+**Endpoint:** `GET /api/telemetry/controller/:controllerId/range?metric={metric}&startTime={start}&endTime={end}`
+
+**Request:**
+```bash
+curl -X GET "http://localhost:5000/api/telemetry/controller/676ctrl123abc456def789abc/range?metric=temperature&startTime=2025-12-22T00:00:00.000Z&endTime=2025-12-22T23:59:59.999Z" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Query Parameters:**
+- `metric` (bắt buộc) - Tên metric cần lọc
+- `startTime` (tùy chọn) - Thời gian bắt đầu (ISO 8601 format)
+- `endTime` (tùy chọn) - Thời gian kết thúc (ISO 8601 format)
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "count": 24,
+  "data": [
+    {
+      "_id": "676tele123abc456def789uv1",
+      "controller_id": "676ctrl123abc456def789abc",
+      "metric": "temperature",
+      "value": 26.5,
+      "unit": "C",
+      "ts": "2025-12-22T00:30:00.000Z"
+    },
+    {
+      "_id": "676tele123abc456def789uv2",
+      "metric": "temperature",
+      "value": 26.8,
+      "ts": "2025-12-22T01:30:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### 8.5. Lấy telemetry mới nhất
 
 **Endpoint:** `GET /api/telemetry/controller/:controllerId/latest`
 
@@ -1307,7 +2367,7 @@ curl -X GET http://localhost:5000/api/telemetry/controller/676ctrl123abc456def78
 
 ---
 
-### 8.4. Lấy thống kê telemetry
+### 8.6. Lấy thống kê telemetry
 
 **Endpoint:** `GET /api/telemetry/controller/:controllerId/stats?metric={metric}&startTime={start}&endTime={end}`
 
@@ -1335,7 +2395,7 @@ curl -X GET "http://localhost:5000/api/telemetry/controller/676ctrl123abc456def7
 
 ---
 
-### 8.5. Lấy telemetry theo khoảng thời gian (aggregated)
+### 8.7. Lấy telemetry theo khoảng thời gian (aggregated)
 
 **Endpoint:** `GET /api/telemetry/controller/:controllerId/aggregated?metric={metric}&startTime={start}&endTime={end}&interval={interval}`
 
@@ -1380,7 +2440,7 @@ curl -X GET "http://localhost:5000/api/telemetry/controller/676ctrl123abc456def7
 
 ---
 
-### 8.6. Lấy danh sách metrics có sẵn
+### 8.8. Lấy danh sách metrics có sẵn
 
 **Endpoint:** `GET /api/telemetry/controller/:controllerId/metrics`
 
@@ -1401,6 +2461,29 @@ curl -X GET http://localhost:5000/api/telemetry/controller/676ctrl123abc456def78
     "light",
     "air_quality"
   ]
+}
+```
+
+---
+
+### 8.9. Xóa telemetry cũ (Admin only)
+
+**Endpoint:** `DELETE /api/telemetry/cleanup`
+
+**Request:**
+```bash
+curl -X DELETE http://localhost:5000/api/telemetry/cleanup \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Note:** Endpoint này được sử dụng để xóa các bản ghi telemetry cũ. Chỉ admin mới có quyền sử dụng endpoint này.
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "message": "Old telemetry records cleaned up",
+  "deletedCount": 1250
 }
 ```
 

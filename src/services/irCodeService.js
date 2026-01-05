@@ -94,6 +94,19 @@ class IrCodeService {
     return await IrCode.find({ ...query, owner_id: null });
   }
 
+  // Get IR codes with IDs and actions for device type
+  static async getIrCodesWithActions(deviceType, brand = null) {
+    console.log(deviceType + brand);
+    const query = {
+      device_type: new RegExp(deviceType, "i"),  // Tìm kiếm không phân biệt hoa thường cho deviceType
+      brand: new RegExp(brand, "i")  // Tìm kiếm không phân biệt hoa thường cho brand
+    };
+    const irCodes = await IrCode.find(query)
+      .select("_id action brand protocol")
+      .sort({ action: 1 });
+    return irCodes;
+  }
+
   // Get available actions for a device type
   static async getActionsByDeviceType(deviceType, brand = null) {
     const query = { device_type: deviceType };

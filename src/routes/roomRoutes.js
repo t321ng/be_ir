@@ -12,7 +12,7 @@ const router = express.Router();
 
 // Room routes
 router.post("/", createRoom); // Create new room
-router.get("/", getRooms); // Get all rooms for user
+router.get("/", getRooms); // Get all rooms for USER
 router.get("/all", getAllRooms); // Get all rooms (admin only)
 router.get("/:id", getRoomById); // Get single room
 router.put("/:id", updateRoom); // Update room
