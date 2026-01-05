@@ -31,7 +31,7 @@ const irCodeSchema = new mongoose.Schema(
     },
 
     frequency: {
-      type: Number, // Tần số IR (Hz) nếu cần
+      type: Number, // Tần số IR (kHz) nếu cần
     },
 
     bits: {
@@ -40,7 +40,7 @@ const irCodeSchema = new mongoose.Schema(
 
     // Payload lưu mã (thường lưu raw array hoặc string)
     raw_data: {
-      type: String, // Chuỗi JSON/mảng raw (vd: [9000,4500,...])
+      type: [Number], // Chuỗi JSON/mảng raw (vd: [9000,4500,...])
     },
 
     data: {

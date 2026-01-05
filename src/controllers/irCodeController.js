@@ -298,6 +298,34 @@ export const getIrCodesByDeviceType = async (req, res) => {
   }
 };
 
+// Get IR codes with IDs and actions for device type
+export const getIrCodesWithActions = async (req, res) => {
+  try {
+    const { type, brand } = req.query;
+
+    if (!type || type.trim() === "") {
+      return errorHandler.missingField(res, "Device Type");
+    }
+
+    if (!brand || brand.trim() === "") {
+      return errorHandler.missingField(res, "Brand");
+    }
+
+    const irCodes = await IrCodeService.getIrCodesWithActions(type, brand);
+    return res.status(200).json({
+      status: "success",
+      count: irCodes.length,
+      data: irCodes,
+    });
+  } catch (error) {
+    console.error("Error getting IR codes with actions:", error);
+    return res.status(500).json({
+      status: "error",
+      message: error.message,
+    });
+  }
+};
+
 // Get available actions for device type
 export const getActionsByDeviceType = async (req, res) => {
   try {

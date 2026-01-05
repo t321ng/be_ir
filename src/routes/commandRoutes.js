@@ -16,7 +16,7 @@ router.post("/send", sendCommand);
 
 // Legacy/secondary routes (temporarily disabled)
 // router.post("/", createCommand); // Create new command
-router.get("/", getCommands); // Get commands for user
+router.get("/", getCommands); // Get history commands
 // router.get("/pending", getPendingCommands); // Get pending commands
 // router.get("/status/:status", getCommandsByStatus); // Get commands by status
 // router.get("/:id", getCommandById); // Get single command

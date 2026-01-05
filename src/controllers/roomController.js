@@ -67,10 +67,10 @@ export const createRoom = async (req, res) => {
 export const getRooms = async (req, res) => {
   try {
     const owner_id = req.user?._id;
-    console.log(req);
-    console.log(req.user);
+    // console.log(req);
+    // console.log(req.user);
     const resq = req.user;
-    console.log(owner_id);
+    // console.log(owner_id);
     if (!owner_id) {
       return res.status(401).json({
         status: "error",
