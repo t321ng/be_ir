@@ -315,7 +315,7 @@ export const sendCommand = async (req, res) => {
     mqttClient.publish(
       topic,
       JSON.stringify(mqttBody),
-      { qos: 1, retain: true  }, // QoS1 để broker xác nhận
+      { qos: 0, retain: false  }, // QoS 0 (ko cần ack) và ko gửi lại
       (err) => {
         if (err) {
           console.error("❌ Publish failed:", err);
@@ -329,7 +329,7 @@ export const sendCommand = async (req, res) => {
     console.log("sended to " + topic);
     const updatedCommand = await CommandService.updateCommandStatus(
       commandDoc._id,
-      "sent",
+      "failed",
       { sent_at: new Date() }
     );
 
