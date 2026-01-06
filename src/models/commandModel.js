@@ -27,7 +27,8 @@ const commandSchema = new mongoose.Schema(
 
     ir_code_id: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "IrCode", // Mã IR dùng (có thể null nếu action không cần IR)
+      ref: "IrCode", // Mã IR dùng 
+      require: true, // bắt buộc
     },
 
     action: {
@@ -36,14 +37,14 @@ const commandSchema = new mongoose.Schema(
       maxlength: 100, // Hành động FE gửi: PowerOn, TempDown...
     },
 
-    topic: {
-      type: String,
-      maxlength: 200, // Topic BE publish (vd device/<id>/commands)
-    },
+    // topic: {
+    //   type: String,
+    //   maxlength: 200, // Topic BE publish (vd device/<id>/commands)
+    // },
 
-    payload: {
-      type: String, // Payload publish (json string/base64/...)
-    },
+    // payload: {
+    //   type: String, // Payload publish (json string/base64/...)
+    // },
 
     status: {
       type: String,
