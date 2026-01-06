@@ -91,32 +91,43 @@ export const getCommandById = async (req, res) => {
   }
 };
 
-// Update command status
-export const updateCommandStatus = async (req, res) => {
+// Update command (full update, not just status)
+export const updateCommand = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, error: errorMsg } = req.body;
+    const user_id = req.user?._id;
+    const updateData = req.body;
 
     if (!id || id.trim() === "") {
       return errorHandler.missingField(res, "Command ID");
     }
 
-    if (!status || status.trim() === "") {
-      return errorHandler.missingField(res, "Status");
-    }
-
-    const validStatuses = ["queued", "sent", "acked", "failed"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
+    if (!user_id) {
+      return res.status(401).json({
         status: "error",
-        message: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
+        message: "Unauthorized - User ID not found in token",
       });
     }
 
-    const additionalData = {};
-    if (errorMsg) additionalData.error = errorMsg;
+    if (!updateData || Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "No data to update",
+      });
+    }
 
-    const command = await CommandService.updateCommandStatus(id, status, additionalData);
+    // Validate status if provided
+    if (updateData.status) {
+      const validStatuses = ["queued", "sent", "acked", "failed"];
+      if (!validStatuses.includes(updateData.status)) {
+        return res.status(400).json({
+          status: "error",
+          message: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
+        });
+      }
+    }
+
+    const command = await CommandService.updateCommand(id, user_id, updateData);
 
     if (!command) {
       return errorHandler.notFound(res, "Command");
@@ -124,11 +135,11 @@ export const updateCommandStatus = async (req, res) => {
 
     return res.status(200).json({
       status: "success",
-      message: "Command status updated",
+      message: "Command updated successfully",
       data: command,
     });
   } catch (error) {
-    console.error("Error updating command status:", error);
+    console.error("Error updating command:", error);
     return errorHandler.handle(res, error);
   }
 };
@@ -273,6 +284,7 @@ export const sendCommand = async (req, res) => {
       controller.cmd_topic ||
       (normalizedBase ? `${normalizedBase}/commands` : `device/${controller._id}/commands`);
 
+    // console.log("payload" + payload);
     // Lưu command ở trạng thái queued, rồi publish và update sent
     const payloadString =
       typeof payload === "string" ? payload : JSON.stringify(payload || {});
@@ -309,35 +321,42 @@ export const sendCommand = async (req, res) => {
       mqttBody.meta = payload;
     }
 
-    console.log("sending to " + topic);
-    // mqttClient.publish(topic, JSON.stringify(mqttBody));
-
+    // Publish command with error handling
     mqttClient.publish(
       topic,
       JSON.stringify(mqttBody),
-      { qos: 1, retain: true  }, // QoS1 để broker xác nhận
-      (err) => {
+      { qos: 0, retain: false }, // QoS 0 (ko cần ack) và ko gửi lại
+      async (err) => {
         if (err) {
           console.error("❌ Publish failed:", err);
+          // Update command with error status and error message
+          await CommandService.updateCommand(
+            commandDoc._id,
+            user_id,
+            { 
+              status: "failed", 
+              error: `Publish error: ${err.message}` 
+            }
+          ).catch(e => console.error("Failed to update command on publish error:", e));
         } else {
           console.log("✅ Publish success (broker acknowledged)");
+          // Update command status to sent
+          await CommandService.updateCommand(
+            commandDoc._id,
+            user_id,
+            { status: "sent", sent_at: new Date() }
+          ).catch(e => console.error("Failed to update command on publish success:", e));
         }
       }
     );
 
-
-    console.log("sended to " + topic);
-    const updatedCommand = await CommandService.updateCommandStatus(
-      commandDoc._id,
-      "sent",
-      { sent_at: new Date() }
-    );
+    console.log("sending to " + topic);
 
     return res.status(201).json({
       status: "success",
       message: "Command created and published",
       topic,
-      data: updatedCommand,
+      data: commandDoc,
       published_payload: mqttBody,
     });
   } catch (error) {

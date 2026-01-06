@@ -9,194 +9,11 @@ Authorization: Bearer <your_jwt_token>
 
 ---
 
-## 📋 Mục Lục
-1. [Authentication](#1-authentication-public)
-2. [Users](#2-users-protected)
-3. [Rooms](#3-rooms-protected)
-4. [Controllers](#4-controllers-protected)
-5. [Appliances](#5-appliances-protected)
-6. [IR Codes](#6-ir-codes-protected)
-7. [Commands](#7-commands-protected)
-8. [Telemetry](#8-telemetry-protected)
-9. [Health Check](#9-health-check-protected)
-10. [Error Codes](#error-codes)
-
----
-
-## 1. Authentication (Public)
-
-### 1.1. Đăng ký tài khoản
-
-**Endpoint:** `POST /api/auth/register`
-
-**Request:**
-```bash
-curl -X POST http://localhost:5000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "nguyenvana@example.com",
-    "password": "SecurePass123!",
-    "username": "nguyenvana"
-  }'
-```
-
-**Request Body:**
-```json
-{
-  "email": "nguyenvana@example.com",
-  "password": "SecurePass123!",
-  "username": "nguyenvana"
-}
-```
-
-**Response 201 (Success):**
-```json
-{
-  "status": "success",
-  "data": {
-    "id": "676abc123def456789012345",
-    "email": "nguyenvana@example.com",
-    "username": "nguyenvana",
-    "is_verified": false
-  }
-}
-```
-
-**Note:** Mã xác nhận 6 số sẽ được gửi qua email, có hiệu lực 15 phút.
-
-**Errors:**
-- `400` - Email hoặc password thiếu
-- `409` - Email đã được đăng ký
-
----
-
-### 1.2. Đăng nhập
-
-**Endpoint:** `POST /api/auth/login`
-
-**Request:**
-```bash
-curl -X POST http://localhost:5000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "nguyenvana@example.com",
-    "password": "SecurePass123!"
-  }'
-```
-
-**Request Body:**
-```json
-{
-  "email": "nguyenvana@example.com",
-  "password": "SecurePass123!"
-}
-```
-
-**Response 200 (Success):**
-```json
-{
-  "status": "success",
-  "data": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "user": {
-      "id": "676abc123def456789012345",
-      "email": "nguyenvana@example.com",
-      "username": "nguyenvana",
-      "role": "user"
-    }
-  }
-}
-```
-
-**Errors:**
-- `400` - Email hoặc password thiếu
-- `401` - Email hoặc password không đúng
-- `403` - Email chưa được xác thực
-
----
-
-### 1.3. Xác thực email
-
-**Endpoint:** `POST /api/auth/verify-email`
-
-**Request:**
-```bash
-curl -X POST http://localhost:5000/api/auth/verify-email \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "nguyenvana@example.com",
-    "code": "123456"
-  }'
-```
-
-**Request Body:**
-```json
-{
-  "email": "nguyenvana@example.com",
-  "code": "123456"
-}
-```
-
-**Response 200 (Success):**
-```json
-{
-  "status": "success",
-  "data": {
-    "message": "Email verified successfully"
-  }
-}
-```
-
-**Errors:**
-- `400` - Email hoặc code thiếu
-- `404` - User không tồn tại
-- `409` - Email đã được xác thực trước đó
-- `410` - Mã xác nhận đã hết hạn
-- `401` - Mã xác nhận không chính xác
-
----
-
-### 1.4. Gửi lại mã xác nhận
-
-**Endpoint:** `POST /api/auth/resend-code`
-
-**Request:**
-```bash
-curl -X POST http://localhost:5000/api/auth/resend-code \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "nguyenvana@example.com"
-  }'
-```
-
-**Request Body:**
-```json
-{
-  "email": "nguyenvana@example.com"
-}
-```
-
-**Response 200 (Success):**
-```json
-{
-  "status": "success",
-  "data": {
-    "message": "Verification code resent successfully"
-  }
-}
-```
-
-**Errors:**
-- `400` - Email thiếu
-- `404` - User không tồn tại
-- `409` - Email đã được xác thực
-- `429` - Gửi lại quá nhanh (phải chờ ít nhất 1 phút)
-
----
-
 ## 2. Users (Protected)
 
 ### 2.1. Tạo user mới (Admin only)
+
+**Auth:** Chỉ `admin`
 
 **Endpoint:** `POST /api/users`
 
@@ -250,6 +67,8 @@ curl -X POST http://localhost:5000/api/users \
 
 ### 2.2. Lấy danh sách users
 
+**Auth:** Chỉ `admin`
+
 **Endpoint:** `GET /api/users`
 
 **Request:**
@@ -290,6 +109,8 @@ curl -X GET http://localhost:5000/api/users \
 
 ### 2.3. Lấy thông tin user theo ID
 
+**Auth:** Chỉ `admin`
+
 **Endpoint:** `GET /api/users/:id`
 
 **Request:**
@@ -320,7 +141,9 @@ curl -X GET http://localhost:5000/api/users/676abc123def456789012345 \
 
 ---
 
-### 2.4. Cập nhật user
+### 2.4. Cập nhật user (admin hoặc chính chủ)
+
+**Auth:** `admin` hoặc chính user đó (token _id trùng với `:id`)
 
 **Endpoint:** `PUT /api/users/:id` hoặc `PATCH /api/users/:id`
 
@@ -360,6 +183,10 @@ curl -X PUT http://localhost:5000/api/users/676abc123def456789012345 \
 }
 ```
 
+**Notes:**
+- User thường chỉ được phép cập nhật chính mình.
+- Admin có thể cập nhật bất kỳ user nào.
+
 **Errors:**
 - `400` - ID không hợp lệ hoặc không có dữ liệu để cập nhật
 - `400` - Role không hợp lệ
@@ -370,13 +197,13 @@ curl -X PUT http://localhost:5000/api/users/676abc123def456789012345 \
 
 ### 2.5. Xóa user
 
-**Endpoint:** `DELETE /api/users/:id` hoặc `PATCH /api/users/:id`
+**Auth:** Chỉ `admin`
 
-**Endpoint:** `GET /api/users`
+**Endpoint:** `DELETE /api/users/:id`
 
 **Request:**
 ```bash
-curl -X GET http://localhost:5000/api/users \
+curl -X DELETE http://localhost:5000/api/users/676abc123def456789012345 \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
@@ -384,33 +211,26 @@ curl -X GET http://localhost:5000/api/users \
 ```json
 {
   "status": "success",
-  "count": 5,
-  "data": [
-    {
-      "_id": "676abc123def456789012345",
-      "username": "nguyenvana",
-      "email": "nguyenvana@example.com",
-      "role": "admin",
-      "is_verified": true,
-      "created_at": "2025-12-20T08:00:00.000Z"
-    },
-    {
-      "_id": "676abc123def456789012346",
-      "username": "newuser123",
-      "email": "newuser@example.com",
-      "role": "user",
-      "is_verified": false,
-      "created_at": "2025-12-22T10:30:00.000Z"
-    }
-  ]
+  "message": "User deleted successfully",
+  "data": {
+    "_id": "676abc123def456789012345",
+    "username": "nguyenvana_updated",
+    "email": "nguyenvana@example.com"
+  }
 }
 ```
 
-**Note:** `password_hash` không được trả về trong danh sách.
+**Errors:**
+- `400` - ID không hợp lệ
+- `404` - User không tồn tại
 
 ---
 
-### 2.3. Lấy thông tin user theo IDs (Admin only)
+## 3. Commands (Protected)
+
+### 3.1. Gửi lệnh (Publish via MQTT)
+
+**Auth:** Bất kỳ user đã xác thực
 
 **Endpoint:** `POST /api/commands/send`
 
@@ -441,7 +261,10 @@ curl -X POST http://localhost:5000/api/commands/send \
 }
 ```
 
-Lưu ý: `user_id` lấy từ JWT, không cần truyền vào body. `ir_code_id` là bắt buộc; server sẽ nạp toàn bộ nội dung IR code để publish.
+**Notes:**
+- `user_id` được lấy tự động từ JWT, không cần truyền trong body
+- `ir_code_id` là bắt buộc; server sẽ nạp toàn bộ nội dung IR code để publish
+- Topic được chọn tự động: ưu tiên `cmd_topic`; nếu không có thì dùng `base_topic/commands`; nếu thiếu cả hai thì fallback `device/<controller_id>/commands`
 
 **Response 201:**
 ```json
@@ -466,11 +289,102 @@ Lưu ý: `user_id` lấy từ JWT, không cần truyền vào body. `ir_code_id`
   },
   "data": {
     "_id": "676cmd123abc456def789rst",
-    "status": "sent",
-    "sent_at": "2025-12-22T16:00:01.500Z",
+    "user_id": "676abc123def456789012345",
+    "controller_id": "676ctrl123abc456def789abc",
+    "appliance_id": "676appl123abc456def789xyz",
+    "room_id": "676room123abc456def789012",
+    "ir_code_id": "676ircd123abc456def789qwe",
     "action": "PowerOn",
-    "topic": "device/676ctrl123abc456def789abc/commands",
-    "payload": "{\"note\":\"optional meta\"}",
+    "status": "sent",
+    "created_at": "2025-12-22T16:00:00.000Z",
+    "sent_at": "2025-12-22T16:00:01.500Z"
+  }
+}
+```
+
+**MQTT Payload:** chứa đầy đủ IR code (protocol, bits, frequency, raw_data/data, brand, device_type) + metadata từ `payload` field (đặt trong trường `meta`).
+
+**Errors:**
+- `400` - Thiếu controller_id, appliance_id, action, hoặc ir_code_id
+- `404` - Controller, appliance, hoặc IR code không tồn tại
+- `401` - Token không hợp lệ
+
+---
+
+### 3.2. Lấy danh sách lệnh của user
+
+**Auth:** Bất kỳ user đã xác thực (lấy danh sách lệnh của chính mình)
+
+**Endpoint:** `GET /api/commands?limit=100`
+
+**Request:**
+```bash
+curl -X GET "http://localhost:5000/api/commands?limit=50" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "count": 3,
+  "data": [
+    {
+      "_id": "676cmd123abc456def789rst",
+      "user_id": {
+        "_id": "676abc123def456789012345",
+        "username": "nguyenvana"
+      },
+      "controller_id": {
+        "_id": "676ctrl123abc456def789abc",
+        "name": "ESP32 Phong Khach"
+      },
+      "appliance_id": {
+        "_id": "676appl123abc456def789xyz",
+        "name": "May lanh Daikin"
+      },
+      "room_id": {
+        "_id": "676room123abc456def789012",
+        "name": "Phong khach"
+      },
+      "ir_code_id": {
+        "_id": "676ircd123abc456def789qwe",
+        "action": "PowerOn"
+      },
+      "action": "PowerOn",
+      "status": "sent",
+      "created_at": "2025-12-22T16:00:00.000Z",
+      "sent_at": "2025-12-22T16:00:01.500Z"
+    }
+  ]
+}
+```
+
+---
+
+### 3.3. Lấy lệnh theo ID
+
+**Auth:** Chỉ user sở hữu lệnh đó
+
+**Endpoint:** `GET /api/commands/:id`
+
+**Request:**
+```bash
+curl -X GET http://localhost:5000/api/commands/676cmd123abc456def789rst \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "data": {
+    "_id": "676cmd123abc456def789rst",
+    "user_id": {
+      "_id": "676abc123def456789012345",
+      "username": "nguyenvana",
+      "email": "user@example.com"
+    },
     "controller_id": {
       "_id": "676ctrl123abc456def789abc",
       "name": "ESP32 Phong Khach",
@@ -487,7 +401,8 @@ Lưu ý: `user_id` lấy từ JWT, không cần truyền vào body. `ir_code_id`
     },
     "room_id": {
       "_id": "676room123abc456def789012",
-      "name": "Phong khach"
+      "name": "Phong khach",
+      "description": "Phong khach tầng 1"
     },
     "ir_code_id": {
       "_id": "676ircd123abc456def789qwe",
@@ -496,68 +411,113 @@ Lưu ý: `user_id` lấy từ JWT, không cần truyền vào body. `ir_code_id`
       "brand": "Daikin",
       "device_type": "air_conditioner"
     },
-    "user_id": {
-      "_id": "676abc123def456789012345",
-      "username": "nguyenvana",
-      "email": "user@example.com"
-    }
-  }
-}
-```
-
-**Topic chọn tự động:** ưu tiên `cmd_topic`; nếu không có thì dùng `base_topic/commands`; nếu thiếu cả hai thì fallback `device/<controller_id>/commands`.
-
-**Nội dung MQTT publish:** chứa đầy đủ IR code (protocol, bits, frequency, raw_data/data, brand, device_type) + metadata tùy chọn từ `payload` (đặt trong trường `meta`).
-
-**Endpoints legacy (tạm tắt):** `POST /api/commands`, `GET /api/commands`, `GET /api/commands/pending`, `GET /api/commands/status/:status`, `PATCH /api/commands/:id/status`, `POST /api/commands/devices/:id/commands/:cmd/send`.
-```json
-{
-  "status": "success",
-  "message": "User updated successfully",
-  "data": {
-    "_id": "676abc123def456789012345",
-    "username": "nguyenvana_updated",
-    "email": "nguyenvana@example.com",
-    "role": "admin",
-    "updated_at": "2025-12-22T11:00:00.000Z"
-  }
-}
-```
-
----
-
-### 2.5. Xóa user
-
-**Endpoint:** `DELETE /api/users/:id`
-
-**Request:**
-```bash
-curl -X DELETE http://localhost:5000/api/users/676abc123def456789012345 \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-```
-
-**Response 200:**
-```json
-{
-  "status": "success",
-  "message": "User deleted successfully",
-  "data": {
-    "_id": "676abc123def456789012345",
-    "username": "nguyenvana_updated",
-    "email": "nguyenvana@example.com"
+    "action": "PowerOn",
+    "status": "sent",
+    "created_at": "2025-12-22T16:00:00.000Z",
+    "sent_at": "2025-12-22T16:00:01.500Z",
+    "ack_at": null,
+    "error": null
   }
 }
 ```
 
 **Errors:**
 - `400` - ID không hợp lệ
-- `404` - User không tồn tại
+- `404` - Command không tồn tại
+- `401` - Không có quyền truy cập (không phải owner)
 
 ---
 
-## 3. Rooms (Protected)
+### 3.4. Cập nhật lệnh
 
-### 3.1. Tạo phòng mới
+**Auth:** Chỉ user sở hữu lệnh đó
+
+**Endpoint:** `PUT /api/commands/:id` hoặc `PATCH /api/commands/:id`
+
+**Request:**
+```bash
+curl -X PUT http://localhost:5000/api/commands/676cmd123abc456def789rst \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "acked"
+  }'
+```
+
+**Request Body:**
+```json
+{
+  "status": "acked",
+  "error": null
+}
+```
+
+**Valid Status Values:** `queued`, `sent`, `acked`, `failed`
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "message": "Command updated successfully",
+  "data": {
+    "_id": "676cmd123abc456def789rst",
+    "user_id": {
+      "_id": "676abc123def456789012345",
+      "username": "nguyenvana",
+      "email": "user@example.com"
+    },
+    "controller_id": {
+      "_id": "676ctrl123abc456def789abc",
+      "name": "ESP32 Phong Khach",
+      "online": true,
+      "cmd_topic": "device/676ctrl123abc456def789abc/commands",
+      "ack_topic": "iot/livingroom/esp32_001/acks",
+      "status_topic": "iot/livingroom/esp32_001/status"
+    },
+    "appliance_id": {
+      "_id": "676appl123abc456def789xyz",
+      "name": "May lanh Daikin",
+      "brand": "Daikin",
+      "device_type": "air_conditioner"
+    },
+    "room_id": {
+      "_id": "676room123abc456def789012",
+      "name": "Phong khach",
+      "description": "Phong khach tầng 1"
+    },
+    "ir_code_id": {
+      "_id": "676ircd123abc456def789qwe",
+      "action": "PowerOn",
+      "protocol": "raw",
+      "brand": "Daikin",
+      "device_type": "air_conditioner"
+    },
+    "action": "PowerOn",
+    "status": "acked",
+    "created_at": "2025-12-22T16:00:00.000Z",
+    "sent_at": "2025-12-22T16:00:01.500Z",
+    "ack_at": "2025-12-22T16:00:05.200Z",
+    "error": null
+  }
+}
+```
+
+**Notes:**
+- Server tự động cập nhật `sent_at` khi `status` = "sent" (nếu chưa có)
+- Server tự động cập nhật `ack_at` khi `status` = "acked" (nếu chưa có)
+- Có thể cập nhật các field: `status`, `error`, và các field khác nếu cần
+
+**Errors:**
+- `400` - ID không hợp lệ hoặc không có dữ liệu để cập nhật
+- `400` - Status không hợp lệ
+- `404` - Command không tồn tại
+- `401` - Không có quyền truy cập (không phải owner)
+
+---
+
+## 4. Rooms (Protected)
+
+### 4.1. Tạo phòng mới
 
 **Endpoint:** `POST /api/rooms`
 
@@ -743,9 +703,9 @@ curl -X DELETE http://localhost:5000/api/rooms/676room123abc456def789012 \
 
 ---
 
-## 4. Controllers (Protected)
+## 5. Controllers (Protected)
 
-### 4.1. Tạo controller (ESP32) mới
+### 5.1. Tạo controller (ESP32) mới
 
 **Endpoint:** `POST /api/controllers`
 
@@ -820,7 +780,7 @@ curl -X POST http://localhost:5000/api/controllers \
 
 ---
 
-### 4.2. Lấy danh sách controllers
+### 5.2. Lấy danh sách controllers
 
 **Endpoint:** `GET /api/controllers?owner_id={userId}`
 
@@ -879,7 +839,7 @@ curl -X GET "http://localhost:5000/api/controllers?owner_id=676abc123def45678901
 
 ---
 
-### 4.3. Cập nhật trạng thái online
+### 5.3. Cập nhật trạng thái online
 
 **Endpoint:** `PATCH /api/controllers/:id/status`
 
@@ -917,7 +877,7 @@ curl -X PATCH http://localhost:5000/api/controllers/676ctrl123abc456def789abc/st
 
 ---
 
-### 4.4. Lấy controller theo ID
+### 5.4. Lấy controller theo ID
 
 **Endpoint:** `GET /api/controllers/:id`
 
@@ -966,7 +926,7 @@ curl -X GET http://localhost:5000/api/controllers/676ctrl123abc456def789abc \
 
 ---
 
-### 4.5. Cập nhật controller
+### 5.5. Cập nhật controller
 
 **Endpoint:** `PUT /api/controllers/:id` hoặc `PATCH /api/controllers/:id`
 
@@ -1029,7 +989,7 @@ curl -X PUT http://localhost:5000/api/controllers/676ctrl123abc456def789abc \
 
 ---
 
-### 4.6. Xóa controller
+### 5.6. Xóa controller
 
 **Endpoint:** `DELETE /api/controllers/:id`
 
@@ -1060,7 +1020,7 @@ curl -X DELETE http://localhost:5000/api/controllers/676ctrl123abc456def789abc \
 
 ---
 
-### 4.7. Lấy controllers theo phòng
+### 5.7. Lấy controllers theo phòng
 
 **Endpoint:** `GET /api/controllers/room/:roomId`
 
@@ -1111,7 +1071,7 @@ curl -X GET http://localhost:5000/api/controllers/room/676room123abc456def789012
 
 ---
 
-### 4.8. Lấy controllers đang online
+### 5.8. Lấy controllers đang online
 
 **Endpoint:** `GET /api/controllers/online`
 
@@ -1151,9 +1111,9 @@ curl -X GET http://localhost:5000/api/controllers/online \
 
 ---
 
-## 5. Appliances (Protected)
+## 6. Appliances (Protected)
 
-### 5.1. Tạo appliance (thiết bị IR) mới
+### 6.1. Tạo appliance (thiết bị IR) mới
 
 **Endpoint:** `POST /api/appliances`
 
@@ -1219,7 +1179,7 @@ curl -X POST http://localhost:5000/api/appliances \
 
 ---
 
-### 5.2. Lấy danh sách appliances
+### 6.2. Lấy danh sách appliances
 
 **Endpoint:** `GET /api/appliances?owner_id={userId}`
 
@@ -1279,7 +1239,7 @@ curl -X GET "http://localhost:5000/api/appliances?owner_id=676abc123def456789012
 
 ---
 
-### 5.3. Lấy appliance theo ID
+### 6.3. Lấy appliance theo ID
 
 **Endpoint:** `GET /api/appliances/:id`
 
@@ -1326,7 +1286,7 @@ curl -X GET http://localhost:5000/api/appliances/676appl123abc456def789xyz \
 
 ---
 
-### 5.4. Cập nhật appliance
+### 6.4. Cập nhật appliance
 
 **Endpoint:** `PUT /api/appliances/:id` hoặc `PATCH /api/appliances/:id`
 
@@ -1385,7 +1345,7 @@ curl -X PUT http://localhost:5000/api/appliances/676appl123abc456def789xyz \
 
 ---
 
-### 5.5. Xóa appliance
+### 6.5. Xóa appliance
 
 **Endpoint:** `DELETE /api/appliances/:id`
 
@@ -1414,7 +1374,7 @@ curl -X DELETE http://localhost:5000/api/appliances/676appl123abc456def789xyz \
 
 ---
 
-### 5.6. Lấy appliances theo phòng
+### 6.6. Lấy appliances theo phòng
 
 **Endpoint:** `GET /api/appliances/room/:roomId`
 
@@ -1470,7 +1430,7 @@ curl -X GET http://localhost:5000/api/appliances/room/676room123abc456def789012 
 
 ---
 
-### 5.7. Lấy appliances theo controller
+### 6.7. Lấy appliances theo controller
 
 **Endpoint:** `GET /api/appliances/controller/:controllerId`
 
@@ -1529,7 +1489,7 @@ curl -X GET http://localhost:5000/api/appliances/controller/676ctrl123abc456def7
 
 ---
 
-### 5.8. Lấy appliances theo loại thiết bị
+### 6.8. Lấy appliances theo loại thiết bị
 
 **Endpoint:** `GET /api/appliances/type/:type`
 
@@ -1572,9 +1532,9 @@ curl -X GET http://localhost:5000/api/appliances/type/air_conditioner \
 
 ---
 
-## 6. IR Codes (Protected)
+## 7. IR Codes (Protected)
 
-### 6.1. Tạo mã IR mới
+### 7.1. Tạo mã IR mới
 
 **Endpoint:** `POST /api/ir-codes`
 
@@ -1639,7 +1599,7 @@ curl -X POST http://localhost:5000/api/ir-codes \
 
 ---
 
-### 6.2. Lấy danh sách IR codes với ID + action theo device type
+### 7.2. Lấy danh sách IR codes với ID + action theo device type
 
 **Endpoint:** `GET /api/ir-codes/action?type={device_type}&brand={brand}`
 
@@ -1701,7 +1661,7 @@ curl -X GET "http://localhost:5000/api/ir-codes/action?type=air_conditioner&bran
 
 ---
 
-### 6.3. Lấy mã IR theo ID
+### 7.3. Lấy mã IR theo ID
 
 **Endpoint:** `GET /api/ir-codes/:id`
 
@@ -1742,7 +1702,7 @@ curl -X GET http://localhost:5000/api/ir-codes/676ircd123abc456def789qwe \
 
 ---
 
-### 6.4. Cập nhật mã IR
+### 7.4. Cập nhật mã IR
 
 **Endpoint:** `PUT /api/ir-codes/:id` hoặc `PATCH /api/ir-codes/:id`
 
@@ -1795,7 +1755,7 @@ curl -X PUT http://localhost:5000/api/ir-codes/676ircd123abc456def789qwe \
 
 ---
 
-### 6.5. Xóa mã IR
+### 7.5. Xóa mã IR
 
 **Endpoint:** `DELETE /api/ir-codes/:id`
 
@@ -1825,7 +1785,7 @@ curl -X DELETE http://localhost:5000/api/ir-codes/676ircd123abc456def789qwe \
 
 ---
 
-### 6.6. Lấy tất cả mã IR của user
+### 7.6. Lấy tất cả mã IR của user
 
 **Endpoint:** `GET /api/ir-codes`
 
@@ -1872,7 +1832,7 @@ curl -X GET http://localhost:5000/api/ir-codes \
 
 ---
 
-### 6.7. Lấy mã IR công cộng (Public Library)
+### 7.7. Lấy mã IR công cộng (Public Library)
 
 **Endpoint:** `GET /api/ir-codes/public`
 

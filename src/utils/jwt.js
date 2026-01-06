@@ -3,7 +3,7 @@ import ApiError from "./apiError.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-export function signAccessToken(payload, expiresIn = process.env.JWT_EXPIRES_IN || "1h") {
+export function signAccessToken(payload, expiresIn = process.env.JWT_EXPIRES_IN || "10d") {
   if (!JWT_SECRET) {
     throw new ApiError(500, "JWT_SECRET is not configured");
   }

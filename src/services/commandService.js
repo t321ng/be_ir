@@ -40,19 +40,28 @@ class CommandService {
     return command;
   }
 
-  // Update command status (Detail - Full populate)
-  static async updateCommandStatus(commandId, status, additionalData = {}) {
-    const updateData = { status, ...additionalData };
+  // Update command (Detail - Full populate)
+  static async updateCommand(commandId, userId, updateData) {
+    // Verify ownership - user can only update their own commands
+    const existingCommand = await Command.findOne({
+      _id: commandId,
+      user_id: userId,
+    });
 
-    // Auto set timestamps based on status
-    if (status === "sent" && !additionalData.sent_at) {
-      updateData.sent_at = new Date();
-    }
-    if (status === "acked" && !additionalData.ack_at) {
-      updateData.ack_at = new Date();
+    if (!existingCommand) {
+      return null;
     }
 
-    const command = await Command.findByIdAndUpdate(commandId, updateData, {
+    // Handle automatic timestamp updates based on status
+    const finalUpdateData = { ...updateData };
+    if (updateData.status === "sent" && !updateData.sent_at) {
+      finalUpdateData.sent_at = new Date();
+    }
+    if (updateData.status === "acked" && !updateData.ack_at) {
+      finalUpdateData.ack_at = new Date();
+    }
+
+    const command = await Command.findByIdAndUpdate(commandId, finalUpdateData, {
       new: true,
     })
       .populate("user_id", "username email")
@@ -60,6 +69,7 @@ class CommandService {
       .populate("appliance_id", "name brand device_type")
       .populate("room_id", "name description")
       .populate("ir_code_id", "action protocol brand device_type");
+    
     return command;
   }
 

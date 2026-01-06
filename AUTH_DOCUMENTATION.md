@@ -169,7 +169,7 @@ All errors use the `ApiError` class with standardized responses:
 Required in `.env`:
 ```bash
 JWT_SECRET=your-secret-key-here
-JWT_EXPIRES_IN=1h
+JWT_EXPIRES_IN=10d
 
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
