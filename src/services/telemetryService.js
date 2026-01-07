@@ -4,7 +4,7 @@ class TelemetryService {
   // Create new telemetry entry (Detail populate)
   static async createTelemetry(telemetryData) {
     const telemetry = await Telemetry.create(telemetryData);
-    return await Telemetry.findById(telemetry._id).populate("controller_id", "name uuid");
+    return await Telemetry.findById(telemetry._id).populate("controller_id", "name");
   }
 
   // Batch create telemetry records (for bulk inserts)
@@ -23,7 +23,7 @@ class TelemetryService {
     if (metric) query.metric = metric;
 
     const telemetry = await Telemetry.find(query)
-      .populate("controller_id", "name uuid")
+      .populate("controller_id", "name")
       .sort({ ts: -1 })
       .limit(limit);
     return telemetry;
@@ -43,7 +43,7 @@ class TelemetryService {
     if (metric) query.metric = metric;
 
     const telemetry = await Telemetry.find(query)
-      .populate("controller_id", "name uuid")
+      .populate("controller_id", "name")
       .sort({ ts: 1 }); // Ascending for time series
     return telemetry;
   }
