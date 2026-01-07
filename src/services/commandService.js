@@ -18,7 +18,7 @@ class CommandService {
     const commands = await Command.find({ user_id: userId })
       .populate("user_id", "username")
       .populate("controller_id", "name")
-      .populate("appliance_id", "name")
+      .populate("appliance_id", "name device_type")
       .populate("room_id", "name")
       .populate("ir_code_id", "action")
       .sort({ created_at: -1 })
@@ -45,7 +45,7 @@ class CommandService {
     // Verify ownership - user can only update their own commands
     const existingCommand = await Command.findOne({
       _id: commandId,
-      user_id: userId,
+      // user_id: userId,
     });
 
     if (!existingCommand) {
@@ -64,7 +64,7 @@ class CommandService {
     const command = await Command.findByIdAndUpdate(commandId, finalUpdateData, {
       new: true,
     })
-      .populate("user_id", "username email")
+      // .populate("user_id", "username email")
       .populate("controller_id", "name online cmd_topic ack_topic status_topic")
       .populate("appliance_id", "name brand device_type")
       .populate("room_id", "name description")

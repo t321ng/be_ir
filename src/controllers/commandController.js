@@ -1,3 +1,4 @@
+import { publish } from "../mqtt/mqttPublisher.js";
 import CommandService from "../services/commandService.js";
 import Command from "../models/commandModel.js";
 import Controller from "../models/controllerModel.js";
@@ -185,31 +186,6 @@ export const getPendingCommands = async (req, res) => {
   }
 };
 
-import mqtt from "mqtt";
-
-let options = {
-  host: process.env.MQTT_BROKER_URL,
-  port: 8883,
-  protocol: "mqtts",
-
-  protocolVersion: 4, // MQTT 3.1.1 (BẮT BUỘC)
-  clean: true,        // session sạch
-  reconnectPeriod: 0,
-
-  username: process.env.MQTT_USERNAME,
-  password: process.env.MQTT_PASSWORD,
-};
-
-const mqttClient = mqtt.connect(options);
-
-mqttClient.on("connect", () => {
-  console.log("MQTT connected");
-});
-
-mqttClient.on("error", (err) => {
-  console.error("MQTT Error:", err);
-});
-
 export const sendCommand = async (req, res) => {
   try {
     const user_id = req.user?._id;
@@ -222,72 +198,33 @@ export const sendCommand = async (req, res) => {
       room_id: roomIdOverride,
     } = req.body;
 
-    if (!user_id) {
-      return res.status(401).json({
-        status: "error",
-        message: "Unauthorized - User ID not found in token",
-      });
-    }
-
-    if (!controller_id || !controller_id.trim()) {
-      return errorHandler.missingField(res, "Controller ID");
-    }
-
-    if (!appliance_id || !appliance_id.trim()) {
-      return errorHandler.missingField(res, "Appliance ID");
-    }
-
-    if (!action || !action.trim()) {
-      return errorHandler.missingField(res, "Action");
-    }
-
-    if (!ir_code_id || !ir_code_id.trim()) {
-      return errorHandler.missingField(res, "IR Code ID");
-    }
+    if (!user_id) return errorHandler.unauthorized(res);
+    if (!controller_id) return errorHandler.missingField(res, "Controller ID");
+    if (!appliance_id) return errorHandler.missingField(res, "Appliance ID");
+    if (!action) return errorHandler.missingField(res, "Action");
+    if (!ir_code_id) return errorHandler.missingField(res, "IR Code ID");
 
     const [controller, appliance] = await Promise.all([
       Controller.findById(controller_id),
       Appliance.findById(appliance_id),
     ]);
 
-    if (!controller) {
-      return errorHandler.notFound(res, "Controller");
-    }
-
-    if (!appliance) {
-      return errorHandler.notFound(res, "Appliance");
-    }
+    if (!controller) return errorHandler.notFound(res, "Controller");
+    if (!appliance) return errorHandler.notFound(res, "Appliance");
 
     const room_id = roomIdOverride || appliance.room_id;
 
-    // Lấy IR code để publish nội dung mã IR
     const irCode = await IrCode.findById(ir_code_id);
-    if (!irCode) {
-      return errorHandler.notFound(res, "IR Code");
-    }
+    if (!irCode) return errorHandler.notFound(res, "IR Code");
 
-    // Parse raw_data nếu là JSON array, fallback string nếu parse lỗi
     let parsedRawData = irCode.raw_data;
-    if (irCode.raw_data) {
-      try {
-        parsedRawData = JSON.parse(irCode.raw_data);
-      } catch (_e) {
-        parsedRawData = irCode.raw_data;
-      }
-    }
+    try { parsedRawData = JSON.parse(irCode.raw_data); } catch {}
 
-    // Chọn topic publish: ưu tiên cmd_topic, sau đó base_topic/commands, cuối cùng fallback
-    const normalizedBase = controller.base_topic
-      ? controller.base_topic.replace(/\/$/, "")
-      : null;
+    const normalizedBase = controller.base_topic?.replace(/\/$/, "");
     const topic =
       controller.cmd_topic ||
-      (normalizedBase ? `${normalizedBase}/commands` : `device/${controller._id}/commands`);
-
-    // console.log("payload" + payload);
-    // Lưu command ở trạng thái queued, rồi publish và update sent
-    const payloadString =
-      typeof payload === "string" ? payload : JSON.stringify(payload || {});
+      (normalizedBase ? `${normalizedBase}/commands`
+                      : `device/${controller.uuid || controller_id}/commands`);
 
     const commandDoc = await CommandService.createCommand({
       user_id,
@@ -297,7 +234,7 @@ export const sendCommand = async (req, res) => {
       ir_code_id,
       action,
       topic,
-      payload: payloadString,
+      payload,
       status: "queued",
     });
 
@@ -316,51 +253,35 @@ export const sendCommand = async (req, res) => {
       device_type: irCode.device_type,
     };
 
-    // Đính kèm payload tùy chọn từ FE (metadata thêm)
-    if (payload !== undefined) {
-      mqttBody.meta = payload;
+    if (payload !== undefined) mqttBody.meta = payload;
+
+    try {
+      await publish(topic, mqttBody);
+      console.log("Đa publish" + topic + "\n" + mqttBody.data)
+      const updatedCommand = await CommandService.updateCommand(
+        commandDoc._id,
+        user_id,
+        { status: "sent", sent_at: new Date() }
+      );
+
+      return res.status(201).json({
+        status: "success",
+        message: "Command published",
+        topic,
+        data: updatedCommand,
+      });
+    } catch (err) {
+      await CommandService.updateCommand(commandDoc._id, user_id, {
+        status: "failed",
+        error: err.message,
+      });
+      return res.status(500).json({
+        status: "error",
+        message: `Publish error: ${err.message}`,
+      });
     }
-
-    // Publish command with error handling
-    mqttClient.publish(
-      topic,
-      JSON.stringify(mqttBody),
-      { qos: 0, retain: false }, // QoS 0 (ko cần ack) và ko gửi lại
-      async (err) => {
-        if (err) {
-          console.error("❌ Publish failed:", err);
-          // Update command with error status and error message
-          await CommandService.updateCommand(
-            commandDoc._id,
-            user_id,
-            { 
-              status: "failed", 
-              error: `Publish error: ${err.message}` 
-            }
-          ).catch(e => console.error("Failed to update command on publish error:", e));
-        } else {
-          console.log("✅ Publish success (broker acknowledged)");
-          // Update command status to sent
-          await CommandService.updateCommand(
-            commandDoc._id,
-            user_id,
-            { status: "sent", sent_at: new Date() }
-          ).catch(e => console.error("Failed to update command on publish success:", e));
-        }
-      }
-    );
-
-    console.log("sending to " + topic);
-
-    return res.status(201).json({
-      status: "success",
-      message: "Command created and published",
-      topic,
-      data: commandDoc,
-      published_payload: mqttBody,
-    });
   } catch (error) {
-    console.error("Error sending command via MQTT:", error);
+    console.error("Error sending command:", error);
     return errorHandler.handle(res, error);
   }
 };

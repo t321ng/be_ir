@@ -3,6 +3,11 @@ import cors from "cors";
 import dotenv from "dotenv";
 import connectDB from "./config/db.js";
 import apiRoutes from "./routes/index.js";
+import { createTelemetryIngestService } from "./services/telemetryIngestService.js"; 
+import http from "http"; 
+import { initSocket } from "./socket/socket.js"; 
+import { initMqtt } from "./mqtt/mqttClient.js";   
+import { handleAck } from "./services/commandAckService.js";
 
 dotenv.config();
 
@@ -66,8 +71,30 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
+
+const httpServer = http.createServer(app);
+const io = initSocket(httpServer);
+
+// Telemetry ingest service (batch + realtime)
+const telemetryIngest = createTelemetryIngestService({ io });
+
+// Init MQTT subscriber (=> forward vào ingest service)
+initMqtt({
+  onMessage: (topic, payload) => {
+    if (topic.endsWith("/data")) {
+      telemetryIngest.ingest(topic, payload);
+    } else if (topic.endsWith("/ack")) {
+      handleAck(io, topic, payload);
+    } else {
+      console.log("[MQTT] Unknown topic:", topic);
+    }
+  },
+});
+
+
+httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}...`);
+  console.log(`MQTT subscribed: device/+/data`);
+  console.log(`WebSocket enabled`);
   console.log(`API Documentation: http://localhost:${PORT}/`);
 });
